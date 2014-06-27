@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name        FlickrDownloadLinks
-// @description Adds download links for all available image sizes to the flickr photstream hover boxes and removes elements that prevent rightclick->save as functionality.
+// @description Adds download links for all available image sizes to the flickr photstream and favorites hover boxes and removes elements that prevent rightclick->save as functionality.
 // @namespace   https://github.com/an-electric-sheep/userscripts
 // @include     https://www.flickr.com/photos/*
 // @version     1
@@ -58,7 +58,9 @@ var generateImageLinks = function() {
     return;
   alreadyProcessed.add(e)
 
-  var photoUrl = e.querySelector(".meta a.title").href;
+
+  var photoPathElements = e.querySelector(".meta a.title").pathname.split('/');
+  var allSizePath = photoPathElements.slice(0, 4).concat("sizes", "sq").join("/")
 
   var linkContainer = document.createElement("div")
   linkContainer.className = "greased-download-links"
@@ -66,7 +68,7 @@ var generateImageLinks = function() {
 
   var req = new XMLHttpRequest();
   // get all-sizes page
-  req.open("get", photoUrl+"sizes/sq")
+  req.open("get", allSizePath)
   req.onload = function(){
     var rspDoc = this.responseXML;
 
@@ -84,8 +86,10 @@ var generateImageLinks = function() {
 }
 
 var enhancePhotoStream = function(rootNode) {
-  for(var e of rootNode.querySelectorAll(".photo-display-item .hover-target")){
-    e.querySelector("div.play").remove();
+  for(var e of rootNode.querySelectorAll(".photo-display-item .thumb")){
+    var downloadBlocker = e.querySelector("div.play")
+    if(downloadBlocker)
+      downloadBlocker.remove();
     e.addEventListener("mouseenter", generateImageLinks)
   }
 }
@@ -103,7 +107,7 @@ var observer = new MutationObserver(function(mutations) {
   });
 });
 
-var photoList = document.querySelector("#photo-list-holder")
+var photoList = document.querySelector("#photo-list-holder, #faves")
 
 if(photoList)
   observer.observe(photoList, { childList: true, subtree: true });
