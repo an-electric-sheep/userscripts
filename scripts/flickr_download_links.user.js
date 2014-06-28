@@ -2,7 +2,7 @@
 // @name        FlickrDownloadLinks
 // @description Adds download links for all available image sizes to the flickr photstream and favorites hover boxes and removes elements that prevent rightclick->save as functionality.
 // @namespace   https://github.com/an-electric-sheep/userscripts
-// @include     https://www.flickr.com/photos/*
+// @match     	*://www.flickr.com/photos/*
 // @version     1
 // @grant       none
 // ==/UserScript==
