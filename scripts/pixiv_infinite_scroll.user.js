@@ -5,7 +5,7 @@
 // @match       *://www.pixiv.net/search*
 // @match       *://www.pixiv.net/member_illust*
 // @downloadURL https://github.com/an-electric-sheep/userscripts/raw/master/scripts/pixiv_infinite_scroll.user.js
-// @version     0.1
+// @version     0.2
 // @grant       none
 // @run-at      document-start
 // ==/UserScript==
@@ -35,28 +35,34 @@ var imgContainerSelector = ".image-items, .display_works > ul";
 
 document.addEventListener("DOMContentLoaded", function() {
   for(var e of document.querySelectorAll("iframe, .ad-printservice, .popular-introduction")){e.remove()}
-  var sheet = document.querySelector("head").appendChild(document.createElement("style")).sheet
+  var sheet = document.querySelector("head").appendChild(document.createElement("style")).sheet;
   
-  sheet.insertRule("#wrapper {width: unset;}", 0)
-  sheet.insertRule(".layout-a {width: unset;}", 0);
-  sheet.insertRule(".layout-a .layout-column-2 {width: calc(100vw - 190px);}", 0)
-  sheet.insertRule(".display_works {width: unset;}", 0)
-  sheet.insertRule(".display_works > ul {display: block; }", 0)
-  sheet.insertRule(".display_works .image-item {float: none; display: inline-block;}", 0)
-  sheet.insertRule(".image-item {height: unset;min-height: 230px;}", 0)
-  sheet.insertRule(".image-item.expanded {display: block !important; width: unset; height: unset;}", 0)
-  sheet.insertRule(".image-item.expanded img {max-width: -moz-available;}", 0)
-  sheet.insertRule(".manga-item {background-color: #f3f3f3;}", 0)
-  sheet.insertRule(".image-item img.manga-medium {max-width: 156px; max-height: 230px; cursor: pointer;}", 0)
-  
-  
-  Maybe(document.querySelector("#wrapper")).apply(e => e.style.width = "unset")
-  Maybe(document.querySelector(".layout-body")).apply(e => e.style.width = "85vw")
+  [
+    // global
+    "#wrapper {width: unset;}",
+    // search page
+    ".layout-body {width: 85vw;}",
+    // member page
+    ".layout-a {width: unset;}",
+    ".layout-a .layout-column-2 {width: calc(100vw - 190px);}",
+    // member works list
+    ".display_works {width: unset;}",
+    ".display_works .image-item {float: none; }",
+    // search and member works list
+    ".image-items, .display_works > ul {display: flex;flex-wrap: wrap;}",
+    ".image-item img {padding: 0px; border: none;}",
+    ".inline-expandable {cursor: pointer;}",
+    ".image-item.expanded {width: 100%; height: unset;}",
+    ".image-item.expanded img {max-width: -moz-available;}",
+    ".manga-item {background-color: #f3f3f3 !important;}",
+    ".image-item img.manga-medium {max-width: 156px; max-height: 230px; cursor: pointer;}"
+  ].forEach(r => sheet.insertRule(r,0))
+ 
   paginator = Maybe(document.querySelectorAll(".pager-container")).map(paginators => paginators[paginators.length-1]).get();
   
   window.addEventListener("scroll", isNextNeeded)
   window.addEventListener("resize", isNextNeeded)
-  for(var e of document.querySelectorAll(".image-item")){addExpander(e)}
+  for(var e of document.querySelectorAll(".image-item")){customizeImageItem(e)}
   isNextNeeded();
 })
 
@@ -111,7 +117,6 @@ function insertMangaSubItem(parentItem,url) {
 
 
 function listItemExpand() {
-  var expandLink = this;
   var container = this.parentNode
   var mediumLink = container.querySelector("a.work").href
   var req = new XMLHttpRequest
@@ -119,12 +124,12 @@ function listItemExpand() {
   req.onload = function() {
     var rsp = this.responseXML;
     var modeLinkUrl = rsp.querySelector(".works_display a").href
-    var imgSrc = rsp.querySelector(".works_display img").src
+    var mediumSrc = rsp.querySelector(".works_display img").src
+    
     var mode = modeLinkUrl.match(/mode=(\w+)/)[1]
     if(mode == "big") {
-      var img = container.querySelector(".work img")
-      img.dataset.originalSource = img.src;
-      img.src = imgSrc.replace("_m.", ".");
+      var img = container.querySelector("img")
+      img.src = mediumSrc.replace("_m.", ".");
       container.classList.add("expanded")
     }
       
@@ -134,16 +139,24 @@ function listItemExpand() {
   }
   req.responseType = "document"
   req.send()
-  this.style.visibility = 'hidden';
-  this.removeEventListener(listItemExpand)
+  this.removeEventListener("click", listItemExpand)
 }
 
-function addExpander(e) {
-  var expander = document.createElement("a");
-  expander.style.display = "block";
-  e.insertBefore(expander, e.firstChild);
-  expander.textContent = "Expand";
-  expander.addEventListener("click", listItemExpand)
+const greasedImageItems = new WeakMap;
+
+function customizeImageItem(e) {
+  if(greasedImageItems.has(e))
+   return;
+  greasedImageItems.set(e, true);
+  var workLink = e.querySelector("a.work")
+  // it's an animation, currently no autoexpand support for that
+  if(workLink.classList.contains("ugoira-thumbnail"))
+    return;
+  var img = workLink.querySelector("img")
+  img.classList.add("inline-expandable")
+  img.dataset.thumbSrc = img.src
+  e.insertBefore(img, workLink)
+  img.addEventListener("click", listItemExpand)
 }
 
 function loadNext() {
@@ -160,7 +173,7 @@ function loadNext() {
       for(var e of rsp.querySelectorAll(".image-item")){
         var imageItem = document.importNode(e, true)
         container.appendChild(imageItem)
-        addExpander(imageItem)
+        customizeImageItem(imageItem)
       }
       while(paginator.hasChildNodes())
         paginator.firstChild.remove()
