@@ -5,7 +5,7 @@
 // @match       *://www.pixiv.net/search*
 // @match       *://www.pixiv.net/member_illust*
 // @downloadURL https://github.com/an-electric-sheep/userscripts/raw/master/scripts/pixiv_infinite_scroll.user.js
-// @version     0.2
+// @version     0.3
 // @grant       none
 // @run-at      document-start
 // ==/UserScript==
@@ -55,7 +55,12 @@ document.addEventListener("DOMContentLoaded", function() {
     ".image-item.expanded {width: 100%; height: unset;}",
     ".image-item.expanded img {max-width: -moz-available;}",
     ".manga-item {background-color: #f3f3f3 !important;}",
-    ".image-item img.manga-medium {max-width: 156px; max-height: 230px; cursor: pointer;}"
+    ".image-item img.manga-medium {max-width: 156px; max-height: 230px; cursor: pointer;}",
+    // animated content inlined in the search page
+    ".exploded-animation {display: flex; width: -moz-fit-content; overflow-y: scroll; border: 2px #f1f1f1 inset;}",
+    ".exploded-animation img {margin-left: 5px;}",
+    ".control-elements {display: flex; justify-content: space-around;align-items: center;}",
+    ".control-elements > * {position: relative;}",
   ].forEach(r => sheet.insertRule(r,0))
  
   paginator = Maybe(document.querySelectorAll(".pager-container")).map(paginators => paginators[paginators.length-1]).get();
@@ -80,8 +85,21 @@ function inViewport (el) {
     );
 }
 
+function mangaItemExpand() {
+  this.removeEventListener("click", mangaItemExpand)
+  
+  var container = this.parentElement;
+  
+  var newImg = document.createElement("img");
+  // just try to load the big image, this may fail for some older images, just expand in that case
+  newImg.src = this.src.replace(/(_p\d+)/, "_big$1")
+  newImg.addEventListener("load", () => {container.replaceChild(newImg, this);container.classList.add("expanded")})
+  newImg.addEventListener("error", () => container.classList.add("expanded"))
+  newImg.className = "manga"
+}
 
-function insertMangaSubItem(parentItem,url) {   
+
+function insertMangaItems(parentItem,url) {   
   var req = new XMLHttpRequest
   req.open("get", url)
   req.onload = function() {
@@ -98,14 +116,8 @@ function insertMangaSubItem(parentItem,url) {
       let img = document.createElement("img")
       img.src = mediumImg.dataset.src
       img.className = "manga-medium"
-      img.addEventListener("click",function(){
-          this.parentElement.classList.add("expanded");
-          this.className = "manga"
-          this.src = this.src.replace(/(_p\d+)/, "_big$1")
-      })
-      
+      img.addEventListener("click", mangaItemExpand)
       item.appendChild(img)
-      
       
       parentItem.parentNode.insertBefore(item, nextItem)
     }
@@ -116,6 +128,78 @@ function insertMangaSubItem(parentItem,url) {
 }
 
 
+function insertAnimationItems(container, mediumDoc) {
+  var script = mediumDoc.querySelector("#wrapper script")
+  // it's not a strong sandbox. it just avoids the loaded script writing to the main window
+  var sandbox = document.createElement("iframe")
+  sandbox.src = window.location.href
+  sandbox.seamless = true
+  sandbox.setAttribute("srcdoc", "<!DOCTYPE html><html><head><script async src='https://cdn.jsdelivr.net/jszip/2.2.2/jszip.min.js'></script><script>window.pixiv = {context: {}}</script><script>"+ script.firstChild.data +"</script></head></html>")
+  sandbox.onload = () => {
+    var sandboxWindow = sandbox.contentWindow
+    var illustData = sandboxWindow.pixiv.context.ugokuIllustFullscreenData
+    var req = new sandboxWindow.XMLHttpRequest
+    req.open("get", illustData.src)
+    req.responseType = "arraybuffer"
+    req.onload = function () {
+      var controlElements = document.createElement("div")
+      controlElements.className = "control-elements"
+      var oldElements = document.createElement("div")
+      while(container.hasChildNodes()){oldElements.appendChild(container.firstChild)}
+      
+      controlElements.appendChild(oldElements)
+      container.appendChild(controlElements)
+      
+      var downloadInfo = document.createElement("div")
+      
+      
+    
+      var buffer = this.response
+      var zip = new sandboxWindow.JSZip(buffer)
+      
+      var downloadLink = document.createElement("a")
+      
+      downloadLink.className = "animation-download"
+      downloadLink.innerHTML = downloadLink.download = sandboxWindow.pixiv.context.illustId + ".zip"
+      
+      downloadInfo.appendChild(document.createTextNode("Download: "))
+      downloadInfo.appendChild(downloadLink)
+      downloadInfo.appendChild(document.createElement("br"))
+      downloadInfo.appendChild(document.createTextNode("pixiv2webm and pixiv2gif available on "))
+      downloadInfo.appendChild(Maybe(document.createElement("a")).apply(e => {e.href = "https://github.com/an-electric-sheep/userscripts"; e.innerHTML = "on github"}).get())
+      controlElements.appendChild(downloadInfo)
+
+      var explodedAnimation = document.createElement("div")
+      explodedAnimation.className = "exploded-animation"
+      container.appendChild(explodedAnimation)
+      
+      var timingInformation = []
+
+      for(var name in zip.files){
+        let file = zip.file(name)
+        let img = document.createElement("img")
+        let imgBuf = file.asArrayBuffer()
+        let imgBlob = new Blob([imgBuf])
+        
+        img.src = URL.createObjectURL(imgBlob)
+        timingInformation.push(file.name  +"\t"+ illustData.frames.find((e) => e.file == name).delay)
+        explodedAnimation.appendChild(img)
+      }
+      container.classList.add("expanded")
+      
+      zip.file("frame_delays.txt", timingInformation.join("\n"))
+      
+      
+      downloadLink.href = URL.createObjectURL(zip.generate({type: "blob"}))
+      
+      sandbox.remove();
+    }
+    req.send()
+  }
+  document.body.appendChild(sandbox)
+
+}
+
 function listItemExpand() {
   var container = this.parentNode
   var mediumLink = container.querySelector("a.work").href
@@ -123,19 +207,25 @@ function listItemExpand() {
   req.open("get", mediumLink)
   req.onload = function() {
     var rsp = this.responseXML;
-    var modeLinkUrl = rsp.querySelector(".works_display a").href
-    var mediumSrc = rsp.querySelector(".works_display img").src
+    if(rsp.querySelector("._ugoku-illust-player-container")) {
+      insertAnimationItems(container, rsp)
+    }
     
-    var mode = modeLinkUrl.match(/mode=(\w+)/)[1]
-    if(mode == "big") {
-      var img = container.querySelector("img")
-      img.src = mediumSrc.replace("_m.", ".");
-      container.classList.add("expanded")
-    }
+    Maybe(rsp.querySelector(".works_display a[href]")).apply((modeLink) => {
+      var modeLinkUrl = modeLink.href
+      var mediumSrc = modeLink.querySelector("img").src
       
-    if(mode == "manga"){
-      insertMangaSubItem(container, modeLinkUrl)
-    }
+      var mode = modeLinkUrl.match(/mode=(.+?)&/)[1]
+      if(mode == "big") {
+        var img = container.querySelector("img")
+        img.src = mediumSrc.replace("_m.", ".");
+        container.classList.add("expanded")
+      }
+      
+      if(mode == "manga"){
+        insertMangaItems(container, modeLinkUrl)
+      }
+    })
   }
   req.responseType = "document"
   req.send()
@@ -149,9 +239,7 @@ function customizeImageItem(e) {
    return;
   greasedImageItems.set(e, true);
   var workLink = e.querySelector("a.work")
-  // it's an animation, currently no autoexpand support for that
-  if(workLink.classList.contains("ugoira-thumbnail"))
-    return;
+
   var img = workLink.querySelector("img")
   img.classList.add("inline-expandable")
   img.dataset.thumbSrc = img.src
