@@ -10,8 +10,6 @@ ARGV.each do |zip|
 
     frames = Pathname.new(dir).join("frame_delays.txt").read.split("\n").map{|l| l.split("\t")}
 
-    puts frames.inspect
-
     input_files = frames.map do |f|
       name = f[0]
       delay = f[1]
