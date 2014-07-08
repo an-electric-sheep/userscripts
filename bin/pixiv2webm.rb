@@ -25,6 +25,6 @@ ARGV.each do |zip|
     puts `ffmpeg -y -r 10 -i '#{dir}/%06d#{extension}' -c:v libvpx -an -quality best -crf 4 -b:v 2M -pass 2 -passlogfile #{passlog} #{intermediate}`
 
     # turn constant framerate mkv into vfr
-    puts `mkvmerge -v -w -o #{zip.gsub(".zip", ".webm")} --timecodes 0:#{timecodes_path} #{intermediate1}`
+    puts `mkvmerge -v -w -o #{zip.gsub(".zip", ".webm")} --timecodes 0:#{timecodes_path} #{intermediate}`
   end
 end
