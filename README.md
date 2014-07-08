@@ -6,6 +6,8 @@ Use the [greasyfork mirror](https://greasyfork.org/scripts/3091-pixiv-infinite-s
 
 Most likely won't work on anything but firefox/greasemonkey since it makes use of some bleeding-edge javascript features and some styles are only written with `-moz-` vendor prefixes (I'm lazy).
 
+Tested with Greasemonkey 2.0 on Firefox 30 and 33
+
 ### Features
 
 * Infinite scroll for search and artists' work pages
