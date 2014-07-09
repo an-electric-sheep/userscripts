@@ -5,7 +5,7 @@
 // @match       *://www.pixiv.net/search*
 // @match       *://www.pixiv.net/member_illust*
 // @downloadURL https://github.com/an-electric-sheep/userscripts/raw/master/scripts/pixiv_infinite_scroll.user.js
-// @version     0.3
+// @version     0.3.1
 // @grant       none
 // @run-at      document-start
 // ==/UserScript==
@@ -31,7 +31,7 @@ Maybe.prototype.get = function(){return this.wrapped;}
 var paginator; 
 var loading = false;
 
-var imgContainerSelector = ".image-items, .display_works > ul";
+var imgContainerSelector = "._image-items, .image-items, .display_works > ul";
 
 document.addEventListener("DOMContentLoaded", function() {
   for(var e of document.querySelectorAll("iframe, .ad-printservice, .popular-introduction")){e.remove()}
@@ -49,7 +49,7 @@ document.addEventListener("DOMContentLoaded", function() {
     ".display_works {width: unset;}",
     ".display_works .image-item {float: none; }",
     // search and member works list
-    ".image-items, .display_works > ul {display: flex;flex-wrap: wrap;}",
+    "._image-items, .image-items, .display_works > ul {display: flex;flex-wrap: wrap;}",
     ".image-item img {padding: 0px; border: none;}",
     ".inline-expandable {cursor: pointer;}",
     ".image-item.expanded {width: 100%; height: unset;}",
@@ -57,7 +57,8 @@ document.addEventListener("DOMContentLoaded", function() {
     ".manga-item {background-color: #f3f3f3 !important;}",
     ".image-item img.manga-medium {max-width: 156px; max-height: 230px; cursor: pointer;}",
     // animated content inlined in the search page
-    ".exploded-animation {display: flex; width: -moz-fit-content; overflow-y: scroll; border: 2px #f1f1f1 inset;}",
+    ".exploded-animation-scroller {overflow-x: auto; width: 100%; margin: 5px 0px; box-shadow: 0px 0px 4px 1px #444;}",
+    ".exploded-animation {display: flex; width: -moz-fit-content; }",
     ".exploded-animation img {margin-left: 5px;}",
     ".control-elements {display: flex; justify-content: space-around;align-items: center;}",
     ".control-elements > * {position: relative;}",
@@ -165,13 +166,17 @@ function insertAnimationItems(container, mediumDoc) {
       downloadInfo.appendChild(document.createTextNode("Download: "))
       downloadInfo.appendChild(downloadLink)
       downloadInfo.appendChild(document.createElement("br"))
-      downloadInfo.appendChild(document.createTextNode("pixiv2webm and pixiv2gif available on "))
+      downloadInfo.appendChild(document.createTextNode("pixiv2webm and pixiv2gif available "))
       downloadInfo.appendChild(Maybe(document.createElement("a")).apply(e => {e.href = "https://github.com/an-electric-sheep/userscripts"; e.innerHTML = "on github"}).get())
       controlElements.appendChild(downloadInfo)
-
+      
+      var scrollContainer = document.createElement("div")
       var explodedAnimation = document.createElement("div")
+      scrollContainer.className = "exploded-animation-scroller"
       explodedAnimation.className = "exploded-animation"
-      container.appendChild(explodedAnimation)
+      
+      scrollContainer.appendChild(explodedAnimation)
+      container.appendChild(scrollContainer)
       
       var timingInformation = []
 
@@ -211,7 +216,7 @@ function listItemExpand() {
       insertAnimationItems(container, rsp)
     }
     
-    Maybe(rsp.querySelector(".works_display a[href]")).apply((modeLink) => {
+    Maybe(rsp.querySelector('.works_display a[href*="mode"]')).apply((modeLink) => {
       var modeLinkUrl = modeLink.href
       var mediumSrc = modeLink.querySelector("img").src
       
