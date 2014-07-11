@@ -5,8 +5,9 @@
 // @match       *://www.pixiv.net/search*
 // @match       *://www.pixiv.net/member_illust*
 // @match       *://www.pixiv.net/new_illust*
+// @match       *://www.pixiv.net/bookmark_new_illust*
 // @downloadURL https://github.com/an-electric-sheep/userscripts/raw/master/scripts/pixiv_infinite_scroll.user.js
-// @version     0.3.2
+// @version     0.3.3
 // @grant       none
 // @run-at      document-start
 // ==/UserScript==
