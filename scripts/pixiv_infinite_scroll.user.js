@@ -7,14 +7,14 @@
 // @match       *://www.pixiv.net/new_illust*
 // @match       *://www.pixiv.net/bookmark_new_illust*
 // @downloadURL https://github.com/an-electric-sheep/userscripts/raw/master/scripts/pixiv_infinite_scroll.user.js
-// @version     0.3.3
+// @version     0.4.0
 // @grant       none
 // @run-at      document-start
 // ==/UserScript==
 
 "use strict";
 
-var Maybe = function (wrapped) {
+function Maybe(wrapped) {
   if (typeof this !== "object" || Object.getPrototypeOf(this) !== Maybe.prototype) {
     var o = Object.create(Maybe.prototype);
     o.constructor.apply(o, arguments);
@@ -26,14 +26,39 @@ var Maybe = function (wrapped) {
 
 Maybe.prototype.isEmpty = function(){return null == this.wrapped}
 Maybe.prototype.orElse = function(other){return this.isEmpty() ? Maybe(other) : this}
-Maybe.prototype.apply = function(f){if(!this.isEmpty()){f.apply(null, [this.wrapped].concat(Array.slice(arguments, 1)))};return this;}
-Maybe.prototype.map = function(f){return this.isEmpty() ? this :  Maybe(f.apply(null, [this.wrapped].concat(Array.slice(arguments,1))));}
+Maybe.prototype.apply = function(f){if(!this.isEmpty()){f.apply(null, [this.wrapped].concat(Array.prototype.slice.call(arguments, 1)))};return this;}
+Maybe.prototype.map = function(f){return this.isEmpty() ? this :  Maybe(f.apply(null, [this.wrapped].concat(Array.prototype.slice.call(arguments,1))));}
 Maybe.prototype.get = function(){return this.wrapped;}
 
-var paginator; 
-var loading = false;
+// incomplete shim for older FF versions
+if(!Array.hasOwnProperty("from"))
+  Object.defineProperty(Array, "from",  {
+    enumerable: false,
+    configurable: true,
+    value: function(e) {
+        return Array.prototype.slice.call(e)
+    }
+  });
 
-var imgContainerSelector = "._image-items, .image-items, .display_works > ul";
+if(!Array.prototype.hasOwnProperty("last"))
+  Object.defineProperty(Array.prototype, 'last', {
+    enumerable: false,
+    configurable: true,
+    get: function() {
+        return this[this.length - 1];
+    },
+    set: undefined
+  });
+
+Object.defineProperty(Function.prototype, "passThis", {value: function(){var f = this; return function(){f.apply(null, [this].concat(arguments))}}})
+
+
+function xpathAt(path, element){
+  var result = document.evaluate(path, element || document.documentElement, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null)
+  return result.singleNodeValue
+}
+
+const imgContainerSelector = "._image-items, .image-items, .display_works > ul";
 
 document.addEventListener("DOMContentLoaded", function() {
   for(var e of document.querySelectorAll("iframe, .ad-printservice, .popular-introduction")){e.remove()}
@@ -55,24 +80,90 @@ document.addEventListener("DOMContentLoaded", function() {
     ".image-item img {padding: 0px; border: none;}",
     ".inline-expandable {cursor: pointer;}",
     ".image-item.expanded {width: 100%; height: unset;}",
-    ".image-item.expanded img {max-width: -moz-available;}",
+    ".image-item.expanded .image-item-main {max-width: 80%; }",
+    ".image-item.expanded img.inline-expandable {max-width: -moz-available; max-width: available;}",
     ".manga-item {background-color: #f3f3f3 !important;}",
     ".image-item img.manga-medium {max-width: 156px; max-height: 230px; cursor: pointer;}",
     // animated content inlined in the search page
     ".exploded-animation-scroller {overflow-x: auto; width: 100%; margin: 5px 0px; box-shadow: 0px 0px 4px 1px #444;}",
-    ".exploded-animation {display: flex; width: -moz-fit-content; }",
+    ".exploded-animation {display: flex; width: -moz-fit-content; width: fit-content; }",
     ".exploded-animation img {margin-left: 5px;}",
-    ".control-elements {display: flex; justify-content: space-around;align-items: center;}",
-    ".control-elements > * {position: relative;}",
+    ".has-extended-info {display: flex; flex-wrap: wrap; justify-content: center; width: unset; height: unset;}",
+    ".extended-info {margin-left: 0.8em;}",
+    ".extended-info > * {margin-bottom: 1em; text-align: left; }",
+    ".extended-info .tags .tag {display: list-item; margin: 0px;}"
   ].forEach(r => sheet.insertRule(r,0))
- 
-  paginator = Maybe(document.querySelectorAll(".pager-container")).map(paginators => paginators[paginators.length-1]).get();
   
-  window.addEventListener("scroll", isNextNeeded)
-  window.addEventListener("resize", isNextNeeded)
+  var paginator = Array.from(document.querySelectorAll(".pager-container")).last;
+  
+  window.addEventListener("scroll", NextPageHandler.checkAll)
+  window.addEventListener("resize", NextPageHandler.checkAll)
   for(var e of document.querySelectorAll(".image-item")){customizeImageItem(e)}
-  isNextNeeded();
+
+  var paginationTrigger = new NextPageHandler(document.querySelector(".image-item:last-child"))
+  if(paginator)
+    paginationTrigger.url = paginator.querySelector("a[rel=next]").href
+  paginationTrigger.paginator = paginator
+  
+  
+  NextPageHandler.checkAll();
 })
+
+function NextPageHandler(e) {
+  this.element = e;
+  NextPageHandler.paginationTriggers.add(this)
+}
+
+NextPageHandler.paginationTriggers = new Set()
+
+NextPageHandler.checkAll = function() {
+  NextPageHandler.paginationTriggers.forEach(e => e.tryLoad())
+}
+
+
+NextPageHandler.prototype.tryLoad = function(){
+  if(this.loading || !this.url || !inViewport(this.element))
+    return;
+  this.loading = true
+  
+  var req = new XMLHttpRequest();
+  req.open("get", this.url)
+  req.onabort = () => this.loading = false
+  req.onerror = () => this.loading = false
+  req.onload = () => {
+    var rsp = req.responseXML;
+    var nextItem = this.element.nextSibling;
+    var container = this.element.parentNode;
+    
+    var newPaginator = rsp.querySelector(".pager-container")
+    var newItems = Array.from(rsp.querySelectorAll(".image-item"))
+    
+    var lastItem = newItems.map(e => {
+      var imageItem = document.importNode(e, true)
+      container.insertBefore(imageItem, nextItem)
+      customizeImageItem(imageItem)
+      return imageItem
+    }).last
+    
+    var nextHandler = new NextPageHandler(lastItem)
+    nextHandler.url = newPaginator.querySelector("a[rel=next]").href
+    nextHandler.paginator = this.paginator
+    
+    if(this.paginator) {
+      while(this.paginator.hasChildNodes())
+        this.paginator.firstChild.remove()
+      Array.from(newPaginator.childNodes).forEach(e => this.paginator.appendChild(document.importNode(e, true)))
+    }
+    this.destroy()
+    this.loading = false
+    NextPageHandler.checkAll();
+  }
+  req.responseType = "document"
+  req.send()
+}
+
+
+NextPageHandler.prototype.destroy = function(){NextPageHandler.paginationTriggers.delete(this)}
 
 
 
@@ -91,12 +182,14 @@ function inViewport (el) {
 function mangaItemExpand() {
   this.removeEventListener("click", mangaItemExpand)
   
-  var container = this.parentElement;
+  var container = this;
+  while(!container.classList.contains("image-item"))
+    container = container.parentNode;
   
   var newImg = document.createElement("img");
   // just try to load the big image, this may fail for some older images, just expand in that case
   newImg.src = this.src.replace(/(_p\d+)/, "_big$1")
-  newImg.addEventListener("load", () => {container.replaceChild(newImg, this);container.classList.add("expanded")})
+  newImg.addEventListener("load", () => {this.parentNode.replaceChild(newImg, this);container.classList.add("expanded")})
   newImg.addEventListener("error", () => container.classList.add("expanded"))
   newImg.className = "manga"
 }
@@ -145,32 +238,26 @@ function insertAnimationItems(container, mediumDoc) {
     req.open("get", illustData.src)
     req.responseType = "arraybuffer"
     req.onload = function () {
-      var controlElements = document.createElement("div")
-      controlElements.className = "control-elements"
-      var oldElements = document.createElement("div")
-      while(container.hasChildNodes()){oldElements.appendChild(container.firstChild)}
-      
-      controlElements.appendChild(oldElements)
-      container.appendChild(controlElements)
-      
-      var downloadInfo = document.createElement("div")
-      
-      
     
       var buffer = this.response
       var zip = new sandboxWindow.JSZip(buffer)
       
       var downloadLink = document.createElement("a")
-      
-      downloadLink.className = "animation-download"
       downloadLink.innerHTML = downloadLink.download = sandboxWindow.pixiv.context.illustId + ".zip"
+      downloadLink.className = "animation-download";
+
+      var downloadInfo = document.createElement("div");
+      downloadInfo.className = "animated-item-download";
       
-      downloadInfo.appendChild(document.createTextNode("Download: "))
-      downloadInfo.appendChild(downloadLink)
-      downloadInfo.appendChild(document.createElement("br"))
-      downloadInfo.appendChild(document.createTextNode("pixiv2webm and pixiv2gif available "))
-      downloadInfo.appendChild(Maybe(document.createElement("a")).apply(e => {e.href = "https://github.com/an-electric-sheep/userscripts"; e.innerHTML = "on github"}).get())
-      controlElements.appendChild(downloadInfo)
+      [
+        document.createTextNode("Download: "),
+        downloadLink,
+        document.createElement("br"),
+        document.createTextNode("pixiv2webm and pixiv2gif available "),
+        Maybe(document.createElement("a")).apply(e => {e.href = "https://github.com/an-electric-sheep/userscripts"; e.innerHTML = "on github"}).get()
+      ].forEach(e => downloadInfo.appendChild(e))
+      
+      container.querySelector(".extended-info").appendChild(downloadInfo)
       
       var scrollContainer = document.createElement("div")
       var explodedAnimation = document.createElement("div")
@@ -184,10 +271,10 @@ function insertAnimationItems(container, mediumDoc) {
 
       for(var name in zip.files){
         let file = zip.file(name)
-        let img = document.createElement("img")
         let imgBuf = file.asArrayBuffer()
         let imgBlob = new Blob([imgBuf])
         
+        let img = document.createElement("img")
         img.src = URL.createObjectURL(imgBlob)
         timingInformation.push(file.name  +"\t"+ illustData.frames.find((e) => e.file == name).delay)
         explodedAnimation.appendChild(img)
@@ -207,13 +294,26 @@ function insertAnimationItems(container, mediumDoc) {
 
 }
 
+function insertItemTags(container, responseDoc) {
+  var tags = document.importNode(responseDoc.querySelector(".tags"), true)
+  container.querySelector(".extended-info").appendChild(tags)
+  container.classList.add("has-extended-info")
+}
+
+
 function listItemExpand() {
-  var container = this.parentNode
+
+  var container = this;
+  while(!container.classList.contains("image-item"))
+    container = container.parentNode;
   var mediumLink = container.querySelector("a.work").href
   var req = new XMLHttpRequest
   req.open("get", mediumLink)
   req.onload = function() {
     var rsp = this.responseXML;
+    
+    insertItemTags(container, rsp)
+    
     if(rsp.querySelector("._ugoku-illust-player-container")) {
       insertAnimationItems(container, rsp)
     }
@@ -233,6 +333,8 @@ function listItemExpand() {
         insertMangaItems(container, modeLinkUrl)
       }
     })
+    
+    
   }
   req.responseType = "document"
   req.send()
@@ -246,46 +348,20 @@ function customizeImageItem(e) {
    return;
   greasedImageItems.set(e, true);
   var workLink = e.querySelector("a.work")
-
-  var img = workLink.querySelector("img")
+  
+  var imageContainer = document.createElement("div")
+  imageContainer.className = "image-item-main"
+  var img = e.querySelector("img")
   img.classList.add("inline-expandable")
-  img.dataset.thumbSrc = img.src
-  e.insertBefore(img, workLink)
   img.addEventListener("click", listItemExpand)
-}
 
-function loadNext() {
-  if(loading)
-    return;
-  loading = true;
-  var nextLink = paginator.querySelector("a[rel=next]")
-  if(nextLink) {
-    var req = new XMLHttpRequest();
-    req.open("get", nextLink.href)
-    req.onload = function() {
-      var rsp = this.responseXML;
-      var container = document.querySelector(imgContainerSelector)
-      for(var e of rsp.querySelectorAll(".image-item")){
-        var imageItem = document.importNode(e, true)
-        container.appendChild(imageItem)
-        customizeImageItem(imageItem)
-      }
-      while(paginator.hasChildNodes())
-        paginator.firstChild.remove()
-      for(var e of rsp.querySelector(".pager-container").childNodes){paginator.appendChild(document.importNode(e, true) )}
-      loading = false;
-      isNextNeeded();
-    }
-    req.responseType = "document"
-    req.send()
-  }
-}
-
-function isNextNeeded() {
-  if(loading)
-    return;
-
-  if(paginator && inViewport(document.querySelector(".image-item:last-child"))) {
-    loadNext();
-  }
+  imageContainer.appendChild(img)
+  while(e.hasChildNodes())
+    imageContainer.appendChild(e.firstChild)
+  e.appendChild(imageContainer)
+  
+  var expandedInfo = document.createElement("aside") 
+  expandedInfo.className = "extended-info"
+  
+  e.appendChild(expandedInfo)
 }
