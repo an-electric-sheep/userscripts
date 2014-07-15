@@ -7,7 +7,7 @@
 // @match       *://www.pixiv.net/new_illust*
 // @match       *://www.pixiv.net/bookmark_new_illust*
 // @downloadURL https://github.com/an-electric-sheep/userscripts/raw/master/scripts/pixiv_infinite_scroll.user.js
-// @version     0.4.0
+// @version     0.5.0
 // @grant       none
 // @run-at      document-start
 // ==/UserScript==
@@ -45,7 +45,7 @@ if(!Array.prototype.hasOwnProperty("last"))
     enumerable: false,
     configurable: true,
     get: function() {
-        return this[this.length - 1];
+        return this.length > 0 ? this[this.length - 1] : undefined;
     },
     set: undefined
   });
@@ -81,35 +81,41 @@ document.addEventListener("DOMContentLoaded", function() {
     ".inline-expandable {cursor: pointer;}",
     ".image-item.expanded {width: 100%; height: unset;}",
     ".image-item.expanded .image-item-main {max-width: 80%; }",
-    ".image-item.expanded img.inline-expandable {max-width: -moz-available; max-width: available;}",
+    ".image-item.expanded img.inline-expandable, .image-item.expanded img.manga {max-width: -moz-available; max-width: available;}",
     ".manga-item {background-color: #f3f3f3 !important;}",
     ".image-item img.manga-medium {max-width: 156px; max-height: 230px; cursor: pointer;}",
     // animated content inlined in the search page
     ".exploded-animation-scroller {overflow-x: auto; width: 100%; margin: 5px 0px; box-shadow: 0px 0px 4px 1px #444;}",
     ".exploded-animation {display: flex; width: -moz-fit-content; width: fit-content; }",
     ".exploded-animation img {margin-left: 5px;}",
-    ".has-extended-info {display: flex; flex-wrap: wrap; justify-content: center; width: unset; height: unset;}",
+    ".has-extended-info {display: flex; flex-wrap: wrap; justify-content: center; min-width: 342px; width: unset; height: unset;}",
     ".extended-info {margin-left: 0.8em;}",
     ".extended-info > * {margin-bottom: 1em; text-align: left; }",
-    ".extended-info .tags .tag {display: list-item; margin: 0px;}"
-  ].forEach(r => sheet.insertRule(r,0))
-  
-  var paginator = Array.from(document.querySelectorAll(".pager-container")).last;
+    ".extended-info .tags .tag {float: unset; text-align: left; height: unset; width: unset; border: unset; padding: unset; background: unset; display: list-item; margin: 0px;}"
+  ].reverse().forEach(r => sheet.insertRule(r,0))
   
   window.addEventListener("scroll", NextPageHandler.checkAll)
   window.addEventListener("resize", NextPageHandler.checkAll)
-  for(var e of document.querySelectorAll(".image-item")){customizeImageItem(e)}
-
-  var paginationTrigger = new NextPageHandler(document.querySelector(".image-item:last-child"))
-  if(paginator)
-    paginationTrigger.url = paginator.querySelector("a[rel=next]").href
-  paginationTrigger.paginator = paginator
+  window.requestAnimationFrame(AnimatedCanvas.updateAll)
   
+  for(var e of document.querySelectorAll(".image-item")){customizeImageItem(e)}
+  
+  
+  Maybe(Array.from(document.querySelectorAll(".pager-container")).last).apply(paginator => {
+    Maybe(document.querySelector(".image-item:last-child")).apply(lastItem => {
+      var trigger = new NextPageHandler(lastItem)
+      trigger.paginator = paginator
+      trigger.url = paginator.querySelector("a[rel=next]").href
+    })
+  })
   
   NextPageHandler.checkAll();
 })
 
 function NextPageHandler(e) {
+  if(!e)
+    throw "element required";
+
   this.element = e;
   NextPageHandler.paginationTriggers.add(this)
 }
@@ -145,9 +151,12 @@ NextPageHandler.prototype.tryLoad = function(){
       return imageItem
     }).last
     
-    var nextHandler = new NextPageHandler(lastItem)
-    nextHandler.url = newPaginator.querySelector("a[rel=next]").href
-    nextHandler.paginator = this.paginator
+    if(lastItem)    
+      Maybe(newPaginator.querySelector("a[rel=next]")).map(e => e.href).apply(url => {
+        var nextHandler = new NextPageHandler(lastItem)
+        nextHandler.url = url
+        nextHandler.paginator = this.paginator
+      })
     
     if(this.paginator) {
       while(this.paginator.hasChildNodes())
@@ -172,10 +181,10 @@ function inViewport (el) {
     var rect = el.getBoundingClientRect();
 
     return (
-        rect.top >= 0 &&
-        rect.left >= 0 &&
-        rect.bottom <= (window.innerHeight || document.documentElement.clientHeight) && 
-        rect.right <= (window.innerWidth || document.documentElement.clientWidth)
+        rect.bottom >= 0 &&
+        rect.right >= 0 &&
+        rect.top <= (window.innerHeight || document.documentElement.clientHeight) && 
+        rect.left <= (window.innerWidth || document.documentElement.clientWidth)
     );
 }
 
@@ -223,6 +232,49 @@ function insertMangaItems(parentItem,url) {
   
 }
 
+function AnimatedCanvas(container, frames) {
+  this.container = container
+  this.frames = frames
+  this.currentFrame = 0
+  
+  this.canvas = document.createElement("canvas")
+  this.canvas.setAttribute("width", frames[0].img.naturalWidth)
+  this.canvas.setAttribute("height", frames[0].img.naturalHeight)
+  
+  var img = container.querySelector("img.inline-expandable")
+  img.parentNode.replaceChild(this.canvas, img)
+  
+  this.ctx = this.canvas.getContext("2d")
+  
+  this.ctx.drawImage(frames[0].img, 0, 0)
+  this.timestamp = null
+  
+  AnimatedCanvas.instances.add(this)
+}
+
+AnimatedCanvas.prototype.update = function(timestamp) {
+  if(!inViewport(this.canvas))
+    return;
+
+  if(!this.timestamp){
+    this.timestamp = timestamp
+    return;
+  }
+  
+  if(timestamp - this.timestamp > this.frames[this.currentFrame].delay)
+  {
+    this.timestamp = timestamp
+    this.currentFrame = (this.currentFrame + 1) % this.frames.length;
+    this.ctx.drawImage(this.frames[this.currentFrame].img, 0, 0)
+  }
+}
+
+AnimatedCanvas.instances = new Set();
+AnimatedCanvas.updateAll = function(timestamp) {
+  AnimatedCanvas.instances.forEach(i => i.update(timestamp))
+  window.requestAnimationFrame(AnimatedCanvas.updateAll)
+}
+
 
 function insertAnimationItems(container, mediumDoc) {
   var script = mediumDoc.querySelector("#wrapper script")
@@ -268,6 +320,8 @@ function insertAnimationItems(container, mediumDoc) {
       container.appendChild(scrollContainer)
       
       var timingInformation = []
+      
+      var frames = []
 
       for(var name in zip.files){
         let file = zip.file(name)
@@ -275,11 +329,17 @@ function insertAnimationItems(container, mediumDoc) {
         let imgBlob = new Blob([imgBuf])
         
         let img = document.createElement("img")
+        let delay = Number(String(illustData.frames.find((e) => e.file == name).delay))
+        
         img.src = URL.createObjectURL(imgBlob)
-        timingInformation.push(file.name  +"\t"+ illustData.frames.find((e) => e.file == name).delay)
+        
+        frames.push({"img": img, "delay": delay})
+        timingInformation.push(file.name  + "\t" + delay)
         explodedAnimation.appendChild(img)
       }
       container.classList.add("expanded")
+      
+      frames[0].img.onload = () => new AnimatedCanvas(container, frames)
       
       zip.file("frame_delays.txt", timingInformation.join("\n"))
       
