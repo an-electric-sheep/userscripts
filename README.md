@@ -10,11 +10,35 @@ Tested with Greasemonkey 2.0 on Firefox 30 and 33
 
 ### Features
 
-* Infinite scroll for search and artists' work pages
-* Expands single-image thumbnails on click in the search and artist's work pages to the full size image (mode=big, not just mode=medium)
-* First click on manga mode thumbnail inlines the mode=medium images of all manga pages, a 2nd click on the individual pages loads mode=big
-* Explodes animation frames to a horizontal scroll and offers a download link on the search/works pages
-* Modifies the .zip file in the download link on the fly to add timecode information for each frame
+#### infinite scroll with flexible-width layout
+
+Search, new works (everyone, new works (followed artists), artist works pages are all auto-paginated. Additionally a custom stylesheet for flexible-width layout is injected 
+
+980px:
+
+<a href="screenshots/flexible_layout_980x.png"><img src="screenshots/flexible_layout_980x.png" alt="search page at 980px viewport width"></a>
+
+2560px:
+
+<a href="screenshots/flexible_layout_2560x.png"><img src="screenshots/flexible_layout_2560x.png" alt="search page at 2560px viewport width"></a>
+
+#### inline expansion
+
+for simple images
+
+<a href="screenshots/illustration_inline_expansion.png"><img src="screenshots/illustration_inline_expansion.png" alt="image inline expansion"></a> 
+
+loading thumbnails for individual pages of a manga gallery
+
+<a href="screenshots/manga_inline_expansion1.png"><img src="screenshots/manga_inline_expansion1.png" alt="manga thumbnails"></a>
+
+expanding individual pages of a manga 
+
+<a href="screenshots/manga_inline_expansion1.png"><img src="screenshots/manga_inline_expansion1.png" alt="manga inline expansion"></a>
+
+animated illustrations (ugoira) loads the full resolution animation, individual frames frames and the option to download a .zip file that includes the timecode necessary to properly encode the animations to other formats
+
+<a href="screenshots/animation_inline_expansion.png"><img src="screenshots/animation_inline_expansion.png" alt="animation inline expansion"></a>
 
 
 The zip with timecodes can be used by the pixiv2webm and pixiv2gif ruby scripts you can find in the `/bin` directory.
