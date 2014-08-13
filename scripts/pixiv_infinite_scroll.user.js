@@ -7,7 +7,7 @@
 // @match       *://www.pixiv.net/new_illust*
 // @match       *://www.pixiv.net/bookmark_new_illust*
 // @downloadURL https://github.com/an-electric-sheep/userscripts/raw/master/scripts/pixiv_infinite_scroll.user.js
-// @version     0.5.0
+// @version     0.5.1
 // @grant       none
 // @run-at      document-start
 // ==/UserScript==
@@ -110,7 +110,45 @@ document.addEventListener("DOMContentLoaded", function() {
   })
   
   NextPageHandler.checkAll();
+  
+  mediumPageHandler();
 })
+
+
+function mediumPageHandler() {
+  var modeLink = document.querySelector('.works_display a[href*="mode"]')
+  if(!modeLink)
+   return;
+
+  var modeLinkUrl = modeLink.href
+  var mode = modeLinkUrl.match(/mode=(.+?)&/)[1]
+
+  var mediumSrc = modeLink.querySelector("img").src
+  var container = modeLink.parentNode;
+  
+  modeLink.addEventListener("click",(e) => {
+    e.preventDefault();
+
+    if(greasedImageItems.has(modeLink))
+      return;
+    
+    greasedImageItems.set(modeLink, true)
+    
+    if(mode == "big") {
+      var img = container.querySelector("img")
+      img.src = mediumSrc.replace("_m.", ".");
+      container.classList.add("expanded")
+    }
+    
+    if(mode == "manga"){
+      insertMangaItems(container, modeLinkUrl)
+    }
+    
+    
+  })
+
+}
+
 
 function NextPageHandler(e) {
   if(!e)
@@ -329,7 +367,7 @@ function insertAnimationItems(container, mediumDoc) {
         let imgBlob = new Blob([imgBuf])
         
         let img = document.createElement("img")
-        let delay = Number(String(illustData.frames.find((e) => e.file == name).delay))
+        let delay = illustData.frames.find((e) => e.file == name).delay
         
         img.src = URL.createObjectURL(imgBlob)
         
