@@ -34,7 +34,7 @@ loading thumbnails for individual pages of a manga gallery
 
 expanding individual pages of a manga 
 
-<a href="screenshots/manga_inline_expansion1.png"><img src="screenshots/manga_inline_expansion1.png" alt="manga inline expansion"></a>
+<a href="screenshots/manga_inline_expansion2.png"><img src="screenshots/manga_inline_expansion2.png" alt="manga inline expansion"></a>
 
 animated illustrations (ugoira) loads the full resolution animation, individual frames frames and the option to download a .zip file that includes the timecode necessary to properly encode the animations to other formats
 
