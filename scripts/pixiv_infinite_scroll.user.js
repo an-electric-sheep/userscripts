@@ -6,9 +6,10 @@
 // @match       *://www.pixiv.net/member_illust*
 // @match       *://www.pixiv.net/new_illust*
 // @match       *://www.pixiv.net/bookmark_new_illust*
+// @require     https://cdnjs.cloudflare.com/ajax/libs/jszip/2.4.0/jszip.js
 // @downloadURL https://github.com/an-electric-sheep/userscripts/raw/master/scripts/pixiv_infinite_scroll.user.js
-// @version     0.5.1
-// @grant       none
+// @version     0.5.2
+// @grant       GM_xmlhttpRequest
 // @run-at      document-start
 // ==/UserScript==
 
@@ -135,9 +136,7 @@ function mediumPageHandler() {
     greasedImageItems.set(modeLink, true)
     
     if(mode == "big") {
-      var img = container.querySelector("img")
-      img.src = mediumSrc.replace("_m.", ".");
-      container.classList.add("expanded")
+      insertBigItem(container, mediumSrc, modeLink, window.location.href)
     }
     
     if(mode == "manga"){
@@ -316,24 +315,37 @@ AnimatedCanvas.updateAll = function(timestamp) {
 
 function insertAnimationItems(container, mediumDoc) {
   var script = mediumDoc.querySelector("#wrapper script")
+
+  console.log(script.firstChild.data)
+
+
   // it's not a strong sandbox. it just avoids the loaded script writing to the main window
   var sandbox = document.createElement("iframe")
-  sandbox.src = window.location.href
+  //sandbox.src = window.location.href
   sandbox.seamless = true
-  sandbox.setAttribute("srcdoc", "<!DOCTYPE html><html><head><script async src='https://cdn.jsdelivr.net/jszip/2.2.2/jszip.min.js'></script><script>window.pixiv = {context: {}}</script><script>"+ script.firstChild.data +"</script></head></html>")
+  sandbox.setAttribute("srcdoc", "<!DOCTYPE html><html><head><script>window.pixiv = {context: {}}</script><script>"+ script.firstChild.data +"</script></head></html>")
   sandbox.onload = () => {
-    var sandboxWindow = sandbox.contentWindow
-    var illustData = sandboxWindow.pixiv.context.ugokuIllustFullscreenData
-    var req = new sandboxWindow.XMLHttpRequest
+    let sandboxWindow = sandbox.contentWindow
+
+    // access unsafe window to read data structure created by the script
+    if(sandboxWindow.wrappedJSObject)
+      sandboxWindow = sandboxWindow.wrappedJSObject
+
+    // sanitize via json encode/decode
+    var pixivContext = JSON.parse(JSON.stringify(sandboxWindow.pixiv.context))
+
+    let illustData = pixivContext.ugokuIllustFullscreenData
+     
+    var req = new XMLHttpRequest
     req.open("get", illustData.src)
     req.responseType = "arraybuffer"
     req.onload = function () {
     
       var buffer = this.response
-      var zip = new sandboxWindow.JSZip(buffer)
-      
+      var zip = new JSZip(buffer)
+
       var downloadLink = document.createElement("a")
-      downloadLink.innerHTML = downloadLink.download = sandboxWindow.pixiv.context.illustId + ".zip"
+      downloadLink.innerHTML = downloadLink.download = pixivContext.illustId + ".zip"
       downloadLink.className = "animation-download";
 
       var downloadInfo = document.createElement("div");
@@ -381,7 +393,6 @@ function insertAnimationItems(container, mediumDoc) {
       
       zip.file("frame_delays.txt", timingInformation.join("\n"))
       
-      
       downloadLink.href = URL.createObjectURL(zip.generate({type: "blob"}))
       
       sandbox.remove();
@@ -396,6 +407,52 @@ function insertItemTags(container, responseDoc) {
   var tags = document.importNode(responseDoc.querySelector(".tags"), true)
   container.querySelector(".extended-info").appendChild(tags)
   container.classList.add("has-extended-info")
+}
+
+function insertBigItem(container, mediumSrc, bigLinkUrl, mediumLinkUrl) {
+  let newImg = document.createElement("img")
+  let curImg = container.querySelector("img")
+  newImg.setAttribute("class", curImg.getAttribute("class"))
+  
+  if(mediumSrc.match(/_m\./)) {
+    // common format, just derive big url from medium url
+    newImg.src = mediumSrc.replace("_m.", ".");
+    
+  
+  } else {
+    // new/complex format, e.g.  http://www.pixiv.net/member_illust.php?mode=medium&illust_id=46204420
+    // requires a full "mode=big" request to determine the correct img uri
+
+    GM_xmlhttpRequest({
+      method: "GET",
+      url: bigLinkUrl,
+      headers: {
+        // we are only allowed to load the mode=big page when referer is mode=medium
+        "Referer": mediumLinkUrl
+      },
+      onerror: function() {
+        console.log("big mode load error")
+      },
+      onload: function(response) {
+        console.log("complex load")
+        let rsp = response.responseXML;
+        // Inject responseXML into existing Object (only appropriate for XML content).
+        if (!response.responseXML) {
+          rsp = new DOMParser().parseFromString(response.responseText, "text/html");
+        }
+        newImg.src = rsp.querySelector("img").src
+      }
+    });
+
+  }
+  
+  newImg.addEventListener("load", () => {curImg.parentNode.replaceChild(newImg, curImg);container.classList.add("expanded")})
+  newImg.addEventListener("error", () => {
+    container.appendChild(document.createTextNode("Failed to load full size image. If this problem persists please report a bug for the infinite scroll userscript"))
+  })
+
+
+  
 }
 
 
@@ -422,17 +479,14 @@ function listItemExpand() {
       
       var mode = modeLinkUrl.match(/mode=(.+?)&/)[1]
       if(mode == "big") {
-        var img = container.querySelector("img")
-        img.src = mediumSrc.replace("_m.", ".");
-        container.classList.add("expanded")
+        insertBigItem(container, mediumSrc, modeLinkUrl, mediumLink)
       }
       
       if(mode == "manga"){
         insertMangaItems(container, modeLinkUrl)
       }
     })
-    
-    
+   
   }
   req.responseType = "document"
   req.send()
