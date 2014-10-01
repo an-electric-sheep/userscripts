@@ -8,7 +8,7 @@
 // @match       *://www.pixiv.net/bookmark_new_illust*
 // @require     https://cdnjs.cloudflare.com/ajax/libs/jszip/2.4.0/jszip.js
 // @downloadURL https://github.com/an-electric-sheep/userscripts/raw/master/scripts/pixiv_infinite_scroll.user.js
-// @version     0.5.3
+// @version     0.5.4
 // @grant       GM_xmlhttpRequest
 // @run-at      document-start
 // ==/UserScript==
@@ -228,22 +228,6 @@ function inViewport (el) {
     );
 }
 
-function mangaItemExpand() {
-  this.removeEventListener("click", mangaItemExpand)
-  
-  var container = this;
-  while(!container.classList.contains("image-item"))
-    container = container.parentNode;
-  
-  var newImg = document.createElement("img");
-  // just try to load the big image, this may fail for some older images, just expand in that case
-  newImg.src = this.src.replace(/(_p\d+)/, "_big$1")
-  newImg.addEventListener("load", () => {this.parentNode.replaceChild(newImg, this);container.classList.add("expanded")})
-  newImg.addEventListener("error", () => container.classList.add("expanded"))
-  newImg.className = "manga"
-}
-
-
 function MangaItem(container, insertBefore, mediumPageElement) {
   let mediumImg = mediumPageElement.querySelector(".image")
   this.bigUrl = mediumPageElement.querySelector(".full-size-container").href
@@ -266,6 +250,11 @@ MangaItem.prototype = {
     let newImg = document.createElement("img")
     newImg.className = "manga"
 
+    // old image format
+    // test with http://www.pixiv.net/member_illust.php?mode=medium&illust_id=43499240
+    mediumSrc = mediumSrc.replace(/_p(\d+)\./, "_big_p$1.")
+    // new image format
+    // test with 
     mediumSrc = mediumSrc.replace(/\/c\/1200x1200\/img-master\//, "/img-original/");
     mediumSrc = mediumSrc.replace(/_master1200\./, ".");
 
