@@ -504,7 +504,7 @@ function customizeImageItem(e) {
   var imageContainer = document.createElement("div")
   imageContainer.className = "image-item-main"
   var img = e.querySelector("img")
-  img.classList.add("inline-expandable")
+  img.setAttribute("class", "inline-expandable")
   img.addEventListener("click", listItemExpand)
 
   imageContainer.appendChild(img)
