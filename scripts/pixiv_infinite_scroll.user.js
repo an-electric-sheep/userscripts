@@ -8,7 +8,7 @@
 // @match       *://www.pixiv.net/bookmark_new_illust*
 // @require     https://cdnjs.cloudflare.com/ajax/libs/jszip/2.4.0/jszip.js
 // @downloadURL https://github.com/an-electric-sheep/userscripts/raw/master/scripts/pixiv_infinite_scroll.user.js
-// @version     0.5.2
+// @version     0.5.3
 // @grant       GM_xmlhttpRequest
 // @run-at      document-start
 // ==/UserScript==
@@ -65,7 +65,7 @@ document.addEventListener("DOMContentLoaded", function() {
   for(var e of document.querySelectorAll("iframe, .ad-printservice, .popular-introduction")){e.remove()}
   var sheet = document.querySelector("head").appendChild(document.createElement("style")).sheet;
   
-  [
+  Array(
     // global
     "#wrapper {width: unset;}",
     // search page
@@ -82,7 +82,8 @@ document.addEventListener("DOMContentLoaded", function() {
     ".inline-expandable {cursor: pointer;}",
     ".image-item.expanded {width: 100%; height: unset;}",
     ".image-item.expanded .image-item-main {max-width: 80%; }",
-    ".image-item.expanded img.inline-expandable, .image-item.expanded img.manga {max-width: -moz-available; max-width: available;}",
+    ".inline-expandable img {max-width: 100%; }",
+    ".image-item.expanded .inline-expandable, .image-item.expanded img.manga {max-width: -moz-available; max-width: available;}",
     ".manga-item {background-color: #f3f3f3 !important;}",
     ".image-item img.manga-medium {max-width: 156px; max-height: 230px; cursor: pointer;}",
     // animated content inlined in the search page
@@ -93,7 +94,9 @@ document.addEventListener("DOMContentLoaded", function() {
     ".extended-info {margin-left: 0.8em;}",
     ".extended-info > * {margin-bottom: 1em; text-align: left; }",
     ".extended-info .tags .tag {float: unset; text-align: left; height: unset; width: unset; border: unset; padding: unset; background: unset; display: list-item; margin: 0px;}"
-  ].reverse().forEach(r => sheet.insertRule(r,0))
+
+
+  ).reverse().forEach(r => sheet.insertRule(r,0))
   
   window.addEventListener("scroll", NextPageHandler.checkAll)
   window.addEventListener("resize", NextPageHandler.checkAll)
@@ -241,6 +244,52 @@ function mangaItemExpand() {
 }
 
 
+function MangaItem(container, insertBefore, mediumPageElement) {
+  let mediumImg = mediumPageElement.querySelector(".image")
+  this.bigUrl = mediumPageElement.querySelector(".full-size-container").href
+    
+  let item = this.item = document.createElement("li")
+  item.className = "image-item manga-item"
+  let img = this.img = document.createElement("img")
+  img.src = mediumImg.dataset.src
+  img.className = "manga-medium"
+  img.addEventListener("click", () => this.expand())
+  item.appendChild(img)
+  
+  container.insertBefore(item, insertBefore)
+}
+
+MangaItem.prototype = {
+  expand: function() {
+    let mediumSrc = this.img.src
+
+    let newImg = document.createElement("img")
+    newImg.className = "manga"
+
+    mediumSrc = mediumSrc.replace(/\/c\/1200x1200\/img-master\//, "/img-original/");
+    mediumSrc = mediumSrc.replace(/_master1200\./, ".");
+
+    let extensions = [".png", ".gif"]
+
+    newImg.addEventListener("load", () => this.insertExpanded(newImg))
+    newImg.addEventListener("error", () => {
+      if(extensions.length > 0) {
+        let ext = extensions.shift()
+        newImg.src = mediumSrc.replace(/\.jpg$/, ext)
+      } else {
+        // TODO: load big page and get proper url from there
+      }
+    })
+    newImg.src = mediumSrc;
+
+  },
+  insertExpanded: function(expandedImg) {
+    this.img.parentNode.replaceChild(expandedImg,this.img)
+    this.item.classList.add("expanded")
+  }
+}
+
+
 function insertMangaItems(parentItem,url) {   
   var req = new XMLHttpRequest
   req.open("get", url)
@@ -248,20 +297,10 @@ function insertMangaItems(parentItem,url) {
     var rsp = this.responseXML
     
     var nextItem = parentItem.nextSibling
+    var container = parentItem.parentNode
     
     for(var e of rsp.querySelectorAll(".item-container")) {
-      let mediumImg = e.querySelector(".image")
-      let bigUrl = e.querySelector(".full-size-container").href
-        
-      let item = document.createElement("li")
-      item.className = "image-item manga-item"
-      let img = document.createElement("img")
-      img.src = mediumImg.dataset.src
-      img.className = "manga-medium"
-      img.addEventListener("click", mangaItemExpand)
-      item.appendChild(img)
-      
-      parentItem.parentNode.insertBefore(item, nextItem)
+      new MangaItem(container, nextItem, e)
     }
   }
   req.responseType = "document"
@@ -278,7 +317,7 @@ function AnimatedCanvas(container, frames) {
   this.canvas.setAttribute("width", frames[0].img.naturalWidth)
   this.canvas.setAttribute("height", frames[0].img.naturalHeight)
   
-  var img = container.querySelector("img.inline-expandable")
+  var img = container.querySelector(".inline-expandable img")
   img.parentNode.replaceChild(this.canvas, img)
   
   this.ctx = this.canvas.getContext("2d")
@@ -415,7 +454,7 @@ function insertBigItem(container, mediumSrc, bigLinkUrl, mediumLinkUrl) {
   newImg.setAttribute("class", curImg.getAttribute("class"))
   
   if(mediumSrc.match(/_m\./)) {
-    // common format, just derive big url from medium url
+    // old format, just derive big url from medium url
     newImg.src = mediumSrc.replace("_m.", ".");
     
   
@@ -456,64 +495,96 @@ function insertBigItem(container, mediumSrc, bigLinkUrl, mediumLinkUrl) {
 }
 
 
-function listItemExpand() {
+const greasedImageItems = new WeakMap();
 
-  var container = this;
-  while(!container.classList.contains("image-item"))
-    container = container.parentNode;
-  var mediumLink = container.querySelector("a.work").href
-  var req = new XMLHttpRequest
-  req.open("get", mediumLink)
-  req.onload = function() {
-    var rsp = this.responseXML;
-    
-    insertItemTags(container, rsp)
-    
-    if(rsp.querySelector("._ugoku-illust-player-container")) {
-      insertAnimationItems(container, rsp)
-    }
-    
-    Maybe(rsp.querySelector('.works_display a[href*="mode"]')).apply((modeLink) => {
-      var modeLinkUrl = modeLink.href
-      var mediumSrc = modeLink.querySelector("img").src
-      
-      var mode = modeLinkUrl.match(/mode=(.+?)&/)[1]
-      if(mode == "big") {
-        insertBigItem(container, mediumSrc, modeLinkUrl, mediumLink)
-      }
-      
-      if(mode == "manga"){
-        insertMangaItems(container, modeLinkUrl)
-      }
-    })
-   
-  }
-  req.responseType = "document"
-  req.send()
-  this.removeEventListener("click", listItemExpand)
+function customizeImageItem(itemElement) {
+  if(greasedImageItems.has(itemElement))
+   return;
+
+  let wrapper = new ImageItem(itemElement)
+
+  greasedImageItems.set(itemElement, wrapper);
 }
 
-const greasedImageItems = new WeakMap;
+function ImageItem(item) {
+  let workLink = this.workLink = item.querySelector("a.work")
 
-function customizeImageItem(e) {
-  if(greasedImageItems.has(e))
-   return;
-  greasedImageItems.set(e, true);
-  var workLink = e.querySelector("a.work")
-  
-  var imageContainer = document.createElement("div")
-  imageContainer.className = "image-item-main"
-  var img = e.querySelector("img")
-  img.setAttribute("class", "inline-expandable")
-  img.addEventListener("click", listItemExpand)
+  this.container = item
 
-  imageContainer.appendChild(img)
-  while(e.hasChildNodes())
-    imageContainer.appendChild(e.firstChild)
-  e.appendChild(imageContainer)
-  
-  var expandedInfo = document.createElement("aside") 
+
+
+  let img = this.img = item.querySelector("img")
+  let mainInfoContainer = document.createElement("div")
+  let imgContainer = document.createElement("div")
+  let expandedInfo = document.createElement("aside") 
+
+
+  mainInfoContainer.appendChild(imgContainer)
+  imgContainer.appendChild(img)
+  while(item.hasChildNodes())
+    mainInfoContainer.appendChild(item.firstChild)
+
+  item.appendChild(mainInfoContainer)
+  item.appendChild(expandedInfo)
+
+  mainInfoContainer.className = "image-item-main"
+
+  imgContainer.classList.add("inline-expandable")
+  // copy a few classes over so the user knows what kind of item it is
+  Array("_work", "multiple", "manga", "ugoku-illust").forEach(cl => {
+    if(workLink.classList.contains(cl))
+      imgContainer.classList.add(cl)
+  })
+
+  img.className = ""
+
+  img.addEventListener("click", () => this.listItemExpand())
+
+  // remove from dom due to after/before styles
+  workLink.remove()
+
   expandedInfo.className = "extended-info"
-  
-  e.appendChild(expandedInfo)
+}
+
+ImageItem.prototype = {
+  listItemExpand: function() {
+    if(this.expanded)
+      return;
+    this.expanded = true
+
+    let container = this.container;
+    while(!container.classList.contains("image-item"))
+      container = container.parentNode;
+    let mediumLink = this.workLink.href
+    let req = new XMLHttpRequest()
+    req.open("get", mediumLink)
+    req.onerror = () => {this.expanded = false}
+    req.onload = function() {
+      let rsp = this.responseXML;
+      
+      insertItemTags(container, rsp)
+      
+      if(rsp.querySelector("._ugoku-illust-player-container")) {
+        insertAnimationItems(container, rsp)
+      }
+      
+      Maybe(rsp.querySelector('.works_display a[href*="mode"]')).apply((modeLink) => {
+        let modeLinkUrl = modeLink.href
+        let mediumSrc = modeLink.querySelector("img").src
+        
+        let mode = modeLinkUrl.match(/mode=(.+?)&/)[1]
+        if(mode == "big") {
+          insertBigItem(container, mediumSrc, modeLinkUrl, mediumLink)
+        }
+        
+        if(mode == "manga"){
+          insertMangaItems(container, modeLinkUrl)
+        }
+      })
+     
+    }
+    req.responseType = "document"
+    req.send()
+    
+  }
 }
