@@ -254,7 +254,7 @@ MangaItem.prototype = {
     // test with http://www.pixiv.net/member_illust.php?mode=medium&illust_id=43499240
     mediumSrc = mediumSrc.replace(/_p(\d+)\./, "_big_p$1.")
     // new image format
-    // test with 
+    // test with http://www.pixiv.net/member_illust.php?mode=medium&illust_id=46288162
     mediumSrc = mediumSrc.replace(/\/c\/1200x1200\/img-master\//, "/img-original/");
     mediumSrc = mediumSrc.replace(/_master1200\./, ".");
 
