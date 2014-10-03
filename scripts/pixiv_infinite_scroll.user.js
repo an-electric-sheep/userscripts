@@ -8,7 +8,7 @@
 // @match       *://www.pixiv.net/bookmark_new_illust*
 // @require     https://cdnjs.cloudflare.com/ajax/libs/jszip/2.4.0/jszip.js
 // @downloadURL https://github.com/an-electric-sheep/userscripts/raw/master/scripts/pixiv_infinite_scroll.user.js
-// @version     0.5.4
+// @version     0.5.5
 // @grant       GM_xmlhttpRequest
 // @run-at      document-start
 // ==/UserScript==
@@ -93,8 +93,8 @@ document.addEventListener("DOMContentLoaded", function() {
     ".has-extended-info {display: flex; flex-wrap: wrap; justify-content: center; min-width: 342px; width: unset; height: unset;}",
     ".extended-info {margin-left: 0.8em;}",
     ".extended-info > * {margin-bottom: 1em; text-align: left; }",
-    ".extended-info .tags .tag {float: unset; text-align: left; height: unset; width: unset; border: unset; padding: unset; background: unset; display: list-item; margin: 0px;}"
-
+    ".extended-info .tags .tag {float: unset; text-align: left; height: unset; width: unset; border: unset; padding: unset; background: unset; display: list-item; margin: 0px;}",
+    "._layout-thumbnail:after {pointer-events: none;}"
 
   ).reverse().forEach(r => sheet.insertRule(r,0))
   
