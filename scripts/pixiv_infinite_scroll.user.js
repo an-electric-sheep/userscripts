@@ -8,7 +8,7 @@
 // @match       *://www.pixiv.net/bookmark_new_illust*
 // @require     https://cdnjs.cloudflare.com/ajax/libs/jszip/2.4.0/jszip.js
 // @downloadURL https://github.com/an-electric-sheep/userscripts/raw/master/scripts/pixiv_infinite_scroll.user.js
-// @version     0.5.5
+// @version     0.5.6
 // @grant       GM_xmlhttpRequest
 // @run-at      document-start
 // ==/UserScript==
@@ -76,6 +76,9 @@ document.addEventListener("DOMContentLoaded", function() {
     // member works list
     ".display_works {width: unset;}",
     ".display_works .image-item {float: none; }",
+    // member illust page
+    ".works_display {width: unset;}",
+    ".works_display img, .works_display ._layout-thumbnail {max-width: -moz-available; max-width: available}",
     // search and member works list
     "._image-items, .image-items, .display_works > ul {display: flex;flex-wrap: wrap;}",
     ".image-item img {padding: 0px; border: none;}",
