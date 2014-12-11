@@ -8,7 +8,7 @@
 // @match       *://www.pixiv.net/bookmark_new_illust*
 // @require     https://cdnjs.cloudflare.com/ajax/libs/jszip/2.4.0/jszip.js
 // @downloadURL https://github.com/an-electric-sheep/userscripts/raw/master/scripts/pixiv_infinite_scroll.user.js
-// @version     0.5.7
+// @version     0.5.8
 // @grant       GM_xmlhttpRequest
 // @run-at      document-start
 // ==/UserScript==
@@ -32,7 +32,7 @@ Maybe.prototype.map = function(f){return this.isEmpty() ? this :  Maybe(f.apply(
 Maybe.prototype.get = function(){return this.wrapped;}
 
 // incomplete shim for older FF versions
-if(!Array.hasOwnProperty("from"))
+if(!Array.hasOwnProperty("from")) {
   Object.defineProperty(Array, "from",  {
     enumerable: false,
     configurable: true,
@@ -40,8 +40,9 @@ if(!Array.hasOwnProperty("from"))
         return Array.prototype.slice.call(e)
     }
   });
+}
 
-if(!Array.prototype.hasOwnProperty("last"))
+if(!Array.prototype.hasOwnProperty("last")) {
   Object.defineProperty(Array.prototype, 'last', {
     enumerable: false,
     configurable: true,
@@ -50,8 +51,9 @@ if(!Array.prototype.hasOwnProperty("last"))
     },
     set: undefined
   });
+}
 
-Object.defineProperty(Function.prototype, "passThis", {value: function(){var f = this; return function(){f.apply(null, [this].concat(arguments))}}})
+Object.defineProperty(Function.prototype, "passThis", {value: function(){let f= this; return function(){f.apply(null, [this].concat(arguments))}}})
 
 var styleAdded = false
 
@@ -595,6 +597,11 @@ ImageItem.prototype = {
         if(mode == "manga"){
           insertMangaItems(container, modeLinkUrl)
         }
+      })
+
+      Maybe(rsp.querySelector(".works_display .big")).apply(big => {
+        container.classList.add("expanded")
+        container.querySelector("img").src = big.dataset.src
       })
      
     }
