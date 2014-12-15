@@ -8,7 +8,7 @@
 // @match       *://www.pixiv.net/bookmark_new_illust*
 // @require     https://cdnjs.cloudflare.com/ajax/libs/jszip/2.4.0/jszip.js
 // @downloadURL https://github.com/an-electric-sheep/userscripts/raw/master/scripts/pixiv_infinite_scroll.user.js
-// @version     0.5.9
+// @version     0.6.0
 // @grant       GM_xmlhttpRequest
 // @run-at      document-start
 // ==/UserScript==
@@ -600,8 +600,15 @@ ImageItem.prototype = {
       })
 
       Maybe(rsp.querySelector(".works_display .big, .original-image")).apply(big => {
-        container.classList.add("expanded")
-        container.querySelector("img").src = big.dataset.src
+        let newImg = document.createElement("img")
+        newImg.addEventListener("load", () => {
+          container.classList.add("expanded")
+          let oldImg = container.querySelector("img")
+          oldImg.parentNode.replaceChild(newImg, oldImg)
+
+        })
+        newImg.src = big.dataset.src
+        
       })
      
     }
