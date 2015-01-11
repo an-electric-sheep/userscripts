@@ -15,6 +15,12 @@
 
 "use strict";
 
+function lift(f) {
+  return function(...args) {
+    f(this, ...args)
+  }
+}
+
 function Maybe(wrapped) {
   if (typeof this !== "object" || Object.getPrototypeOf(this) !== Maybe.prototype) {
     var o = Object.create(Maybe.prototype);
@@ -103,6 +109,7 @@ function insertStyle() {
     Array(
       // global
       "#wrapper {width: unset;}",
+      ".userscript-error {background-color: rgb(200,0,0); color: black;}",
       // search page
       ".layout-body {width: 85vw;}",
       // member page
@@ -308,17 +315,25 @@ MangaItem.prototype = {
 
 
 function insertMangaItems(parentItem,url) {   
-  var req = new XMLHttpRequest
+  let req = new XMLHttpRequest
   req.open("get", url)
   req.onload = function() {
-    var rsp = this.responseXML
+    let rsp = this.responseXML
     
-    var nextItem = parentItem.nextSibling
-    var container = parentItem.parentNode
+    let nextItem = parentItem.nextSibling
+    let container = parentItem.parentNode
+
+    let items = rsp.querySelectorAll(".item-container")
+
+    if(items.length < 1)
+      reportError("no manga items found for " + url)
     
-    for(var e of rsp.querySelectorAll(".item-container")) {
+    for(let e of items) {
       new MangaItem(container, nextItem, e)
     }
+  }
+  req.onerror = () => {
+    reportError("failed to load " + url)
   }
   req.responseType = "document"
   req.send()
@@ -570,14 +585,19 @@ ImageItem.prototype = {
     let mediumLink = this.workLink.href
     let req = new XMLHttpRequest()
     req.open("get", mediumLink)
-    req.onerror = () => {this.expanded = false}
-    req.onload = function() {
-      let rsp = this.responseXML;
+    req.onerror = () => {
+      this.expanded = false
+      reportError("could not fetch medium page for item "+ this.workLink)
+    }
+    req.onload = lift((response) => {
+      let rsp = response.responseXML;
+      let success = false
       
       insertItemTags(container, rsp)
       
       if(rsp.querySelector("._ugoku-illust-player-container")) {
         insertAnimationItems(container, rsp)
+        success = true
       }
       
       Maybe(rsp.querySelector('.works_display a[href*="mode"]')).apply((modeLink) => {
@@ -585,12 +605,14 @@ ImageItem.prototype = {
         let mediumSrc = modeLink.querySelector("img").src
         
         let mode = modeLinkUrl.match(/mode=(.+?)&/)[1]
-        if(mode == "big") {
+        if(mode === "big") {
           insertBigItem(container, mediumSrc, modeLinkUrl, mediumLink)
+          success = true
         }
         
-        if(mode == "manga"){
+        if(mode === "manga"){
           insertMangaItems(container, modeLinkUrl)
+          success = true
         }
       })
 
@@ -600,15 +622,37 @@ ImageItem.prototype = {
           container.classList.add("expanded")
           let oldImg = container.querySelector("img")
           oldImg.parentNode.replaceChild(newImg, oldImg)
-
+        })
+        newImg.addEventListener("error", () => {
+          reportError("could not load image: " + newImg.src)
         })
         newImg.src = big.dataset.src
+        // assume success, report other errors async
+        success = true
         
       })
+
+      if(!success) {
+        reportError("failed to find data to expand "+ this.workLink)
+      }
      
-    }
+    })
     req.responseType = "document"
     req.send()
     
   }
+}
+
+function reportError(msg){
+  let body = document.body
+  let div = document.createElement("div")
+
+  div.textContent = msg
+  div.className = "userscript-error"
+  div.addEventListener("click", () => {
+    if(e.target === div)
+      div.remove()
+  })
+
+  body.insertBefore(div, body.firstChild)
 }
