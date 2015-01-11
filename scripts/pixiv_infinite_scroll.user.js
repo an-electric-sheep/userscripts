@@ -529,15 +529,10 @@ function ImageItem(item) {
   this.container = item
 
 
-
-  let img = this.img = item.querySelector("img")
   let mainInfoContainer = document.createElement("div")
-  let imgContainer = document.createElement("div")
   let expandedInfo = document.createElement("aside") 
 
-
-  mainInfoContainer.appendChild(imgContainer)
-  imgContainer.appendChild(img)
+  // transplant everything as-is from the image item into the new wrapper
   while(item.hasChildNodes())
     mainInfoContainer.appendChild(item.firstChild)
 
@@ -546,24 +541,24 @@ function ImageItem(item) {
 
   mainInfoContainer.className = "image-item-main"
 
-  imgContainer.classList.add("inline-expandable")
-  // copy a few classes over so the user knows what kind of item it is
-  Array("_work", "multiple", "manga", "ugoku-illust").forEach(cl => {
-    if(workLink.classList.contains(cl))
-      imgContainer.classList.add(cl)
+  mainInfoContainer.classList.add("inline-expandable")
+
+  this.image.addEventListener("click", (e) => {
+    this.listItemExpand()
+    // img is wrapped in a link, don't follow the link when the user clicks on it
+    if(e.button === 0) {
+      e.preventDefault()
+      e.stopPropagation()
+    }
   })
-
-  img.className = ""
-
-  img.addEventListener("click", () => this.listItemExpand())
-
-  // remove from dom due to after/before styles
-  workLink.remove()
 
   expandedInfo.className = "extended-info"
 }
 
 ImageItem.prototype = {
+  get image() {
+    return this.workLink.querySelector("img")
+  },
   listItemExpand: function() {
     if(this.expanded)
       return;
