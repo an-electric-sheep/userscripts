@@ -8,7 +8,7 @@
 // @match       *://www.pixiv.net/bookmark_new_illust*
 // @require     https://cdnjs.cloudflare.com/ajax/libs/jszip/2.4.0/jszip.js
 // @downloadURL https://github.com/an-electric-sheep/userscripts/raw/master/scripts/pixiv_infinite_scroll.user.js
-// @version     0.6.0
+// @version     0.6.1
 // @grant       GM_xmlhttpRequest
 // @run-at      document-start
 // ==/UserScript==
@@ -109,7 +109,7 @@ function insertStyle() {
     Array(
       // global
       "#wrapper {width: unset;}",
-      ".userscript-error {background-color: rgb(200,0,0); color: black;position: fixed;z-index: 2;width: 100%;text-align:center; padding: 2px; color: white; font-weight: bold;}",
+      ".userscript-error {background-color: rgb(200,0,0); color: black;position: sticky;z-index: 2;width: 100%;text-align:center; padding: 2px; color: white; font-weight: bold;}",
       // search page
       ".layout-body {width: 85vw;}",
       // member page
@@ -128,7 +128,7 @@ function insertStyle() {
       ".image-item.expanded {width: 100%; height: unset;}",
       ".image-item.expanded .image-item-main {max-width: 80%; }",
       ".inline-expandable img {max-width: 100%; }",
-      ".image-item.expanded .inline-expandable, .image-item.expanded img.manga {max-width: -moz-available; max-width: available;}",
+      ".image-item.expanded img.manga, .image-item.expanded canvas {max-width: -moz-available; max-width: available;}",
       ".manga-item {background-color: #f3f3f3 !important;}",
       ".image-item img.manga-medium {max-width: 156px; max-height: 230px; cursor: pointer;}",
       // animated content inlined in the search page
@@ -442,17 +442,13 @@ function insertMangaItems(parentItem,url) {
   
 }
 
-function AnimatedCanvas(container, frames) {
-  this.container = container
+function AnimatedCanvas(frames) {
   this.frames = frames
   this.currentFrame = 0
   
   this.canvas = document.createElement("canvas")
   this.canvas.setAttribute("width", frames[0].img.naturalWidth)
   this.canvas.setAttribute("height", frames[0].img.naturalHeight)
-  
-  var img = container.querySelector(".inline-expandable img")
-  img.parentNode.replaceChild(this.canvas, img)
   
   this.ctx = this.canvas.getContext("2d")
   
@@ -486,7 +482,10 @@ AnimatedCanvas.updateAll = function(timestamp) {
 }
 
 
-function insertAnimationItems(container, mediumDoc) {
+function insertAnimationItems(imageItem, mediumDoc) {
+  let container = imageItem.container
+
+
   var script = mediumDoc.querySelector("#wrapper script")
 
   console.log(script.firstChild.data)
@@ -524,13 +523,13 @@ function insertAnimationItems(container, mediumDoc) {
       var downloadInfo = document.createElement("div");
       downloadInfo.className = "animated-item-download";
       
-      [
+      Array(
         document.createTextNode("Download: "),
         downloadLink,
         document.createElement("br"),
         document.createTextNode("pixiv2webm and pixiv2gif available "),
         Maybe(document.createElement("a")).apply(e => {e.href = "https://github.com/an-electric-sheep/userscripts"; e.innerHTML = "on github"}).get()
-      ].forEach(e => downloadInfo.appendChild(e))
+      ).forEach(e => downloadInfo.appendChild(e))
       
       container.querySelector(".extended-info").appendChild(downloadInfo)
       
@@ -562,7 +561,11 @@ function insertAnimationItems(container, mediumDoc) {
       }
       container.classList.add("expanded")
       
-      frames[0].img.onload = () => new AnimatedCanvas(container, frames)
+      frames[0].img.onload = () => {
+        let animation = new AnimatedCanvas(frames)
+        imageItem.mainPanel.insertBefore(animation.canvas, imageItem.mainPanel.firstChild)
+        imageItem.image.remove()
+      }
       
       zip.file("frame_delays.txt", timingInformation.join("\n"))
       
@@ -621,7 +624,7 @@ function insertBigItem(container, mediumSrc, bigLinkUrl, mediumLinkUrl) {
   
   newImg.addEventListener("load", () => {curImg.parentNode.replaceChild(newImg, curImg);container.classList.add("expanded")})
   newImg.addEventListener("error", () => {
-    container.appendChild(document.createTextNode("Failed to load full size image. If this problem persists please report a bug for the infinite scroll userscript"))
+    reportError("failed to load big image for " + mediumSrc)
   })
 
 
@@ -645,8 +648,8 @@ function ImageItem(item) {
 
   this.container = item
 
-
   let mainInfoContainer = document.createElement("div")
+  this.mainPanel = mainInfoContainer
   let expandedInfo = document.createElement("aside") 
 
   // transplant everything as-is from the image item into the new wrapper
@@ -698,7 +701,7 @@ ImageItem.prototype = {
       insertItemTags(container, rsp)
       
       if(rsp.querySelector("._ugoku-illust-player-container")) {
-        insertAnimationItems(container, rsp)
+        insertAnimationItems(this, rsp)
         success = true
       }
       
@@ -721,9 +724,11 @@ ImageItem.prototype = {
       Maybe(rsp.querySelector(".works_display .big, .original-image")).apply(big => {
         let newImg = document.createElement("img")
         newImg.addEventListener("load", () => {
-          container.classList.add("expanded")
           let oldImg = container.querySelector("img")
-          oldImg.parentNode.replaceChild(newImg, oldImg)
+          oldImg.remove()
+
+          this.mainPanel.insertBefore(newImg, this.mainPanel.firstChild)
+          container.classList.add("expanded")
         })
         newImg.addEventListener("error", () => {
           reportError("could not load image: " + newImg.src)
