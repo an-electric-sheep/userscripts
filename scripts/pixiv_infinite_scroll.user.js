@@ -109,7 +109,7 @@ function insertStyle() {
     Array(
       // global
       "#wrapper {width: unset;}",
-      ".userscript-error {background-color: rgb(200,0,0); color: black;}",
+      ".userscript-error {background-color: rgb(200,0,0); color: black;position: fixed;z-index: 2;width: 100%;text-align:center; padding: 2px; color: white; font-weight: bold;}",
       // search page
       ".layout-body {width: 85vw;}",
       // member page
@@ -152,6 +152,69 @@ insertStyle()
 
 
 
+function apiGet(urlSuffix) {
+  return new Promise((resolve, reject) => {
+    let session = document.cookie.match(/PHPSESSID=([^;]+);/)[1]
+    let url = "http://spapi.pixiv.net/iphone/" + urlSuffix + "&PHPSESSID=" + session
+
+    GM_xmlhttpRequest({
+      method: "GET",
+      url: url,
+      headers: {
+        "Referer": document.location.href
+      },
+      onerror: function() {
+        reject("api request " + url + " failed. are you logged in?")
+      },
+      onload: function(response) {
+        let rawLines = response.responseText.replace(/\n$/,"").split("\n");
+
+
+
+        let lines = []     
+
+        for(let j=0;j<rawLines.length;j++) {
+          let raw = rawLines[j]
+          let data = []
+
+          let stringStart = -1
+          let quotedString = false
+
+          // tokenizer loop
+          for(let i=0;i<raw.length;i++) {
+            if(quotedString === false) {
+              if(raw[i] === ",") {
+                if(stringStart !== -1)
+                  data.push(raw.substring(stringStart,i-1))
+                else
+                  data.push(null)
+                stringStart = -1
+              }
+
+              if(raw[i] === '"') {
+                quotedString = true
+                stringStart = i+1
+              }
+
+
+            } else {
+              // assume that ", ends a quoted string
+              // TODO: figure out proper escaping of quotes.
+              // quotes are escaped as two consequtive quotes, i.e. ""
+              // e.g. query info for http://www.pixiv.net/member_illust.php?mode=medium&illust_id=43499240
+              if(raw[i] === '"' && (i+1 === raw.length || raw[i+1] === ","))
+                quotedString = false
+            }
+          }
+
+          lines.push(data)
+        }
+
+        resolve(lines)
+      }
+    })
+  })
+}
 
 
 function mediumPageHandler() {
@@ -263,14 +326,16 @@ function inViewport (el) {
     );
 }
 
-function MangaItem(container, insertBefore, mediumPageElement) {
-  let mediumImg = mediumPageElement.querySelector(".image")
-  this.bigUrl = mediumPageElement.querySelector(".full-size-container").href
-    
+function MangaItem(container, insertBefore, mediumUrl) {
+  
+  this.thumbSrc = mediumUrl
+  // unless the API resolves the file type for us we have to try all possible extensions
+  this.extensions = ["jpg", "png", "gif"]
+
   let item = this.item = document.createElement("li")
   item.className = "image-item manga-item"
   let img = this.img = document.createElement("img")
-  img.src = mediumImg.dataset.src
+  img.src = mediumUrl
   img.className = "manga-medium"
   img.addEventListener("click", () => this.expand())
   item.appendChild(img)
@@ -285,26 +350,37 @@ MangaItem.prototype = {
     let newImg = document.createElement("img")
     newImg.className = "manga"
 
-    // old image format
-    // test with http://www.pixiv.net/member_illust.php?mode=medium&illust_id=43499240
-    mediumSrc = mediumSrc.replace(/_p(\d+)\./, "_big_p$1.")
-    // new image format
-    // test with http://www.pixiv.net/member_illust.php?mode=medium&illust_id=46288162
-    mediumSrc = mediumSrc.replace(/\/c\/1200x1200\/img-master\//, "/img-original/");
-    mediumSrc = mediumSrc.replace(/_master1200\./, ".");
+    if(/\/img-master\//.test(mediumSrc)) {
+      // new image format
+      // test with http://www.pixiv.net/member_illust.php?mode=medium&illust_id=46288162
+      mediumSrc = mediumSrc.replace(/\/c\/\d+x\d+\/img-master\//, "/img-original/");
+      mediumSrc = mediumSrc.replace(/_master1200\./, ".");
+    } else {
+      // old image format
+      // test with http://www.pixiv.net/member_illust.php?mode=medium&illust_id=43499240
+      mediumSrc = mediumSrc.replace(/_p(\d+)\./, "_big_p$1.")
+    }
 
-    let extensions = [".png", ".gif"]
+    // mobile API image format
+    // test with http://www.pixiv.net/member_illust.php?mode=medium&illust_id=47204793
+    mediumSrc = mediumSrc.replace(/mobile\//, "")
+    mediumSrc = mediumSrc.replace(/_480mw/, "")
+
+    // first extension
+    let ext = "." + this.extensions.shift()
+    let withExtension = mediumSrc.replace(/\.jpg$/, ext)
 
     newImg.addEventListener("load", () => this.insertExpanded(newImg))
     newImg.addEventListener("error", () => {
-      if(extensions.length > 0) {
-        let ext = extensions.shift()
-        newImg.src = mediumSrc.replace(/\.jpg$/, ext)
+      if(this.extensions.length > 0) {
+        let fallbackExt = "." + this.extensions.shift()
+        newImg.src = mediumSrc.replace(/\.jpg$/, fallbackExt)
       } else {
-        // TODO: load big page and get proper url from there
+        // todo: load big page as fallback
+        reportError("couldn't find big image based on manga thumbnail "+ this.thumbSrc + " tried " + withExtension)
       }
     })
-    newImg.src = mediumSrc;
+    newImg.src = withExtension;
 
   },
   insertExpanded: function(expandedImg) {
@@ -314,29 +390,55 @@ MangaItem.prototype = {
 }
 
 
-function insertMangaItems(parentItem,url) {   
-  let req = new XMLHttpRequest
-  req.open("get", url)
-  req.onload = function() {
-    let rsp = this.responseXML
-    
-    let nextItem = parentItem.nextSibling
-    let container = parentItem.parentNode
+function insertMangaItems(parentItem,url) {
 
-    let items = rsp.querySelectorAll(".item-container")
+  let id = url.match(/illust_id=(\d+)/)[1]
+  let nextItem = parentItem.nextSibling
+  let container = parentItem.parentNode
 
-    if(items.length < 1)
-      reportError("no manga items found for " + url)
-    
-    for(let e of items) {
-      new MangaItem(container, nextItem, e)
-    }
-  }
-  req.onerror = () => {
-    reportError("failed to load " + url)
-  }
-  req.responseType = "document"
-  req.send()
+
+  apiGet("manga.php?illust_id="+id)
+    .then(apiData => {
+      for(let entry of apiData) {
+        let thumbUrl = entry[9]
+        let extension = entry[2]
+
+        let item = new MangaItem(container, nextItem, thumbUrl)
+        item.extensions = [extension]
+      }
+    }).catch(ex => new Promise((resolve, reject) => {
+      let req = new XMLHttpRequest()
+      req.open("get", url)
+      req.onload = function() {
+        let rsp = this.responseXML
+
+        let items = rsp.querySelectorAll(".item-container")
+
+        if(items.length < 1)
+          reject("no manga items found for " + url)
+        else
+          resolve(null)
+        
+        for(let e of items) {
+          let mediumImg = e.querySelector(".image")
+          let item = new MangaItem(container, nextItem, mediumImg.dataset.src)
+
+          item.bigUrl = e.querySelector(".full-size-container").href
+          
+        }
+      }
+      req.onerror = () => {
+        reject("failed to load " + url)
+      }
+      req.responseType = "document"
+      req.send()
+
+    })).catch(ex => {
+      reportError(ex)
+    })
+
+
+ 
   
 }
 
@@ -649,7 +751,7 @@ function reportError(msg){
 
   div.textContent = msg
   div.className = "userscript-error"
-  div.addEventListener("click", () => {
+  div.addEventListener("click", (e) => {
     if(e.target === div)
       div.remove()
   })
