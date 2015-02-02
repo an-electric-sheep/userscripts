@@ -8,10 +8,22 @@
 // @match       *://www.pixiv.net/bookmark_new_illust*
 // @require     https://cdnjs.cloudflare.com/ajax/libs/jszip/2.4.0/jszip.js
 // @downloadURL https://github.com/an-electric-sheep/userscripts/raw/master/scripts/pixiv_infinite_scroll.user.js
-// @version     0.6.1
+// @version     0.6.2
 // @grant       GM_xmlhttpRequest
 // @run-at      document-start
 // ==/UserScript==
+
+/*
+
+various test-cases; may be NSFW
+
+http://www.pixiv.net/member_illust.php?mode=medium&illust_id=48159751
+http://www.pixiv.net/member_illust.php?mode=medium&illust_id=46288162
+http://www.pixiv.net/member_illust.php?mode=medium&illust_id=43499240
+http://www.pixiv.net/member_illust.php?mode=medium&illust_id=47204793
+
+
+*/
 
 "use strict";
 
@@ -109,7 +121,7 @@ function insertStyle() {
     Array(
       // global
       "#wrapper {width: unset;}",
-      ".userscript-error {background-color: rgb(200,0,0); color: black;position: sticky;z-index: 2;width: 100%;text-align:center; padding: 2px; color: white; font-weight: bold;}",
+      ".userscript-error {background-color: rgb(200,0,0); color: black;position: sticky;z-index: 2;width: 100%;text-align:center; padding: 2px; color: white; font-weight: bold; top: 0px;}",
       // search page
       ".layout-body {width: 85vw;}",
       // member page
@@ -366,15 +378,26 @@ MangaItem.prototype = {
     mediumSrc = mediumSrc.replace(/mobile\//, "")
     mediumSrc = mediumSrc.replace(/_480mw/, "")
 
+    let exts = this.extensions.slice()
+
     // first extension
-    let ext = "." + this.extensions.shift()
-    let withExtension = mediumSrc.replace(/\.jpg$/, ext)
+    let ext = "." + exts.shift()
+    // match either end of path or start of query query param
+    let withExtension = mediumSrc.replace(/\.jpg(?=$|\?)/, ext)
 
     newImg.addEventListener("load", () => this.insertExpanded(newImg))
     newImg.addEventListener("error", () => {
-      if(this.extensions.length > 0) {
-        let fallbackExt = "." + this.extensions.shift()
-        newImg.src = mediumSrc.replace(/\.jpg$/, fallbackExt)
+
+      if(exts.length == 0 && (/_big_p/.test(mediumSrc))) {
+        // sometimes there is no _big_p image for old style urls, usually on small pages
+        mediumSrc = mediumSrc.replace(/_big_p/, "_p")
+        exts = this.extensions.slice()
+      }
+
+      if(exts.length > 0) {
+        let fallbackExt = "." + exts.shift()
+        // match either end of path or start of query query param
+        newImg.src = mediumSrc.replace(/\.jpg(?=$|\?)/, fallbackExt)
       } else {
         // todo: load big page as fallback
         reportError("couldn't find big image based on manga thumbnail "+ this.thumbSrc + " tried " + withExtension)
