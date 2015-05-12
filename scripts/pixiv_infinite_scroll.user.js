@@ -8,7 +8,7 @@
 // @match       *://www.pixiv.net/bookmark_new_illust*
 // @require     https://cdnjs.cloudflare.com/ajax/libs/jszip/2.4.0/jszip.js
 // @downloadURL https://github.com/an-electric-sheep/userscripts/raw/master/scripts/pixiv_infinite_scroll.user.js
-// @version     0.6.2
+// @version     0.6.3
 // @grant       GM_xmlhttpRequest
 // @run-at      document-start
 // ==/UserScript==
@@ -179,6 +179,12 @@ function apiGet(urlSuffix) {
         reject("api request " + url + " failed. are you logged in?")
       },
       onload: function(response) {
+        if(response.status != 200) {
+          reject("api request " + url + " returned code "+ response.status+". are you logged in?")
+          return;
+        }
+
+
         let rawLines = response.responseText.replace(/\n$/,"").split("\n");
 
 
