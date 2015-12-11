@@ -89,6 +89,7 @@ document.addEventListener("DOMContentLoaded", function() {
   
   window.addEventListener("scroll", NextPageHandler.checkAll)
   window.addEventListener("resize", NextPageHandler.checkAll)
+  window.addEventListener("visibilitychange", NextPageHandler.checkAll)
   window.requestAnimationFrame(AnimatedCanvas.updateAll)
   
   for(var e of document.querySelectorAll(".image-item")){customizeImageItem(e)}
@@ -334,6 +335,8 @@ NextPageHandler.prototype.destroy = function(){NextPageHandler.paginationTrigger
 
 
 function inViewport (el) {
+    if(("hidden" in document) && document.hidden)
+      return false;
 
     var rect = el.getBoundingClientRect();
 
