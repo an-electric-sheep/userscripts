@@ -11,6 +11,7 @@
 // @version     0.6.3
 // @grant       GM_xmlhttpRequest
 // @run-at      document-start
+// @noframes
 // ==/UserScript==
 
 /*
