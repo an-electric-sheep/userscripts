@@ -304,10 +304,13 @@ NextPageHandler.prototype.tryLoad = function(){
     
     var lastItem = newItems.map(e => {
       var imageItem = document.importNode(e, true)
-      container.insertBefore(imageItem, nextItem)
-      customizeImageItem(imageItem)
-      return imageItem
-    }).last
+      let result = customizeImageItem(imageItem)
+      if(result) {
+        container.insertBefore(imageItem, nextItem)
+        return imageItem;
+      }
+      return null;
+    }).filter(e => e != null).last
     
     if(lastItem)    
       Maybe(newPaginator.querySelector("a[rel=next]")).map(e => e.href).apply(url => {
@@ -666,14 +669,23 @@ function insertBigItem(container, mediumSrc, bigLinkUrl, mediumLinkUrl) {
 
 
 const greasedImageItems = new WeakMap();
+const greasedIds = new Set();
 
 function customizeImageItem(itemElement) {
   if(greasedImageItems.has(itemElement))
-   return;
+   return false;
 
   let wrapper = new ImageItem(itemElement)
+  
+  let id = wrapper.id;
+  if(id && greasedIds.has(id)) {
+    return false;
+  }
+    
 
   greasedImageItems.set(itemElement, wrapper);
+  greasedIds.add(id);
+  return true;
 }
 
 function ImageItem(item) {
@@ -709,6 +721,9 @@ function ImageItem(item) {
 }
 
 ImageItem.prototype = {
+  get id() {
+    return this.workLink.href.match(/illust_id=(\d+)/)[1] | 0
+  },
   get image() {
     return this.workLink.querySelector("img")
   },
