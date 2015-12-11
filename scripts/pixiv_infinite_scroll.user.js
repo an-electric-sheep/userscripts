@@ -108,61 +108,65 @@ document.addEventListener("DOMContentLoaded", function() {
   mediumPageHandler();
 })
 
-function insertStyle() {
-  if(styleAdded)
-    return;
+const style = document.createElement("style");
 
-  // wait until the parser is done with <head>
-  if(!(document.querySelector("body"))) {
-    window.requestAnimationFrame(insertStyle);
-    return;
+
+
+style.textContent = Array(
+   // global
+   "#wrapper {width: unset;}",
+   ".userscript-error {background-color: rgb(200,0,0); color: black;position: sticky;z-index: 2;width: 100%;text-align:center; padding: 2px; color: white; font-weight: bold; top: 0px;}",
+   // search page
+   ".layout-body {width: 85vw;}",
+   // member page
+   ".layout-a {width: unset;}",
+   ".layout-a .layout-column-2 {width: calc(100vw - 190px);}",
+   // member works list
+   ".display_works {width: unset;}",
+   ".display_works .image-item {float: none; }",
+   // member illust page
+   ".works_display {width: unset;}",
+   ".works_display img, .works_display ._layout-thumbnail {max-width: -moz-available; max-width: available}",
+   // search and member works list
+   "._image-items, .image-items, .display_works > ul {display: flex;flex-wrap: wrap;}",
+   ".image-item img {padding: 0px; border: none;}",
+   ".inline-expandable {cursor: pointer;}",
+   ".image-item.expanded {width: 100%; height: unset;}",
+   ".image-item.expanded .image-item-main {max-width: 80%; }",
+   ".inline-expandable img {max-width: 100%; }",
+   ".image-item.expanded img.manga, .image-item.expanded canvas {max-width: -moz-available; max-width: available;}",
+   ".manga-item {background-color: #f3f3f3 !important;}",
+   ".image-item img.manga-medium {max-width: 156px; max-height: 230px; cursor: pointer;}",
+   // animated content inlined in the search page
+   ".exploded-animation-scroller {overflow-x: auto; width: 100%; margin: 5px 0px; box-shadow: 0px 0px 4px 1px #444;}",
+   ".exploded-animation {display: flex; width: -moz-fit-content; width: fit-content; }",
+   ".exploded-animation img {margin-left: 5px;}",
+   ".has-extended-info {display: flex; flex-wrap: wrap; justify-content: center; min-width: 342px; width: unset; height: unset;}",
+   ".extended-info {margin-left: 0.8em;}",
+   ".extended-info > * {margin-bottom: 1em; text-align: left; }",
+   ".extended-info .tags .tag {float: unset; text-align: left; height: unset; width: unset; border: unset; padding: unset; background: unset; display: list-item; margin: 0px;}",
+   "._layout-thumbnail:after {pointer-events: none;}"
+  ).reduce((a, b) => a + "\n" + b, "");
+
+
+if(document.head)
+  document.head.appendChild(style);
+
+let obs = new MutationObserver(function(records) {
+  for(let r of records) {
+    for(let e of r.addedNodes) {
+      if(e.localName == "head") {
+        e.appendChild(style);
+      }
+      if(e.localName == "body") {
+        document.head.appendChild(style);
+        obs.disconnect();
+      }
+    }
   }
-
-  Maybe(document.querySelector("head")).map(head => head.appendChild(document.createElement("style")).sheet).apply(sheet => {
-
-    Array(
-      // global
-      "#wrapper {width: unset;}",
-      ".userscript-error {background-color: rgb(200,0,0); color: black;position: sticky;z-index: 2;width: 100%;text-align:center; padding: 2px; color: white; font-weight: bold; top: 0px;}",
-      // search page
-      ".layout-body {width: 85vw;}",
-      // member page
-      ".layout-a {width: unset;}",
-      ".layout-a .layout-column-2 {width: calc(100vw - 190px);}",
-      // member works list
-      ".display_works {width: unset;}",
-      ".display_works .image-item {float: none; }",
-      // member illust page
-      ".works_display {width: unset;}",
-      ".works_display img, .works_display ._layout-thumbnail {max-width: -moz-available; max-width: available}",
-      // search and member works list
-      "._image-items, .image-items, .display_works > ul {display: flex;flex-wrap: wrap;}",
-      ".image-item img {padding: 0px; border: none;}",
-      ".inline-expandable {cursor: pointer;}",
-      ".image-item.expanded {width: 100%; height: unset;}",
-      ".image-item.expanded .image-item-main {max-width: 80%; }",
-      ".inline-expandable img {max-width: 100%; }",
-      ".image-item.expanded img.manga, .image-item.expanded canvas {max-width: -moz-available; max-width: available;}",
-      ".manga-item {background-color: #f3f3f3 !important;}",
-      ".image-item img.manga-medium {max-width: 156px; max-height: 230px; cursor: pointer;}",
-      // animated content inlined in the search page
-      ".exploded-animation-scroller {overflow-x: auto; width: 100%; margin: 5px 0px; box-shadow: 0px 0px 4px 1px #444;}",
-      ".exploded-animation {display: flex; width: -moz-fit-content; width: fit-content; }",
-      ".exploded-animation img {margin-left: 5px;}",
-      ".has-extended-info {display: flex; flex-wrap: wrap; justify-content: center; min-width: 342px; width: unset; height: unset;}",
-      ".extended-info {margin-left: 0.8em;}",
-      ".extended-info > * {margin-bottom: 1em; text-align: left; }",
-      ".extended-info .tags .tag {float: unset; text-align: left; height: unset; width: unset; border: unset; padding: unset; background: unset; display: list-item; margin: 0px;}",
-      "._layout-thumbnail:after {pointer-events: none;}"
-
-    ).reverse().forEach(r => sheet.insertRule(r,0))
-
-    styleAdded = true
-  });
-}
-
-// attempt to insert immediately
-insertStyle()
+});
+  
+obs.observe(document.documentElement, {childList: true});
 
 
 
