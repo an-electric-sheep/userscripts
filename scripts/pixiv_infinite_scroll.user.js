@@ -170,16 +170,20 @@ obs.observe(document.documentElement, {childList: true});
 
 
 
-function apiGet(urlSuffix) {
+function apiGet(workId) {
   return new Promise((resolve, reject) => {
     let session = document.cookie.match(/PHPSESSID=([^;]+);/)[1]
-    let url = "http://spapi.pixiv.net/iphone/" + urlSuffix + "&PHPSESSID=" + session
+    //let token = unsafeWindow.pixiv.context.token
+    let token = document.cookie.match(/PHPSESSID=\d+_([^;]+);/)[1]
+    let url = "https://public-api.secure.pixiv.net/v1/works/"+workId+".json" + '?profile_image_sizes=px_170x170,px_50x50&image_sizes=px_128x128,small,medium,large,px_480mw&include_stats=true&show_r18=1' // ?PHPSESSID=" + session
 
     GM_xmlhttpRequest({
       method: "GET",
       url: url,
       headers: {
-        "Referer": document.location.href
+        "Referer": document.location.href,
+        //"Authorization": "Bearer "+token
+        "Authorization": "Bearer 8mMXXWT9iuwdJvsVIvQsFYDwuZpRCMePeyagSh30ZdU"
       },
       onerror: function() {
         reject("api request " + url + " failed. are you logged in?")
@@ -189,52 +193,17 @@ function apiGet(urlSuffix) {
           reject("api request " + url + " returned code "+ response.status+". are you logged in?")
           return;
         }
-
-
-        let rawLines = response.responseText.replace(/\n$/,"").split("\n");
-
-
-
-        let lines = []     
-
-        for(let j=0;j<rawLines.length;j++) {
-          let raw = rawLines[j]
-          let data = []
-
-          let stringStart = -1
-          let quotedString = false
-
-          // tokenizer loop
-          for(let i=0;i<raw.length;i++) {
-            if(quotedString === false) {
-              if(raw[i] === ",") {
-                if(stringStart !== -1)
-                  data.push(raw.substring(stringStart,i-1))
-                else
-                  data.push(null)
-                stringStart = -1
-              }
-
-              if(raw[i] === '"') {
-                quotedString = true
-                stringStart = i+1
-              }
-
-
-            } else {
-              // assume that ", ends a quoted string
-              // TODO: figure out proper escaping of quotes.
-              // quotes are escaped as two consequtive quotes, i.e. ""
-              // e.g. query info for http://www.pixiv.net/member_illust.php?mode=medium&illust_id=43499240
-              if(raw[i] === '"' && (i+1 === raw.length || raw[i+1] === ","))
-                quotedString = false
-            }
-          }
-
-          lines.push(data)
+        
+        if(response.responseText.trim() == "") {
+          reject("api request returned empty response")
+          return;
         }
+        
 
-        resolve(lines)
+        let data = JSON.parse(response.responseText)
+
+
+        resolve(data)
       }
     })
   })
@@ -373,7 +342,18 @@ function MangaItem(container, insertBefore, mediumUrl) {
 }
 
 MangaItem.prototype = {
+  fastExpand: function() {
+    let newImg = document.createElement("img")
+    newImg.className = "manga";
+    newImg.addEventListener("load", () => this.insertExpanded(newImg))
+    newImg.src = this.bigSrc;
+  },
   expand: function() {
+    if(this.bigSrc) {
+      this.fastExpand()
+      return;
+    }
+      
     let mediumSrc = this.img.src
 
     let newImg = document.createElement("img")
@@ -437,14 +417,16 @@ function insertMangaItems(parentItem,url) {
   let container = parentItem.parentNode
 
 
-  apiGet("manga.php?illust_id="+id)
+  apiGet(id)
     .then(apiData => {
-      for(let entry of apiData) {
-        let thumbUrl = entry[9]
-        let extension = entry[2]
+      let pages = apiData.response[0].metadata.pages;
 
-        let item = new MangaItem(container, nextItem, thumbUrl)
-        item.extensions = [extension]
+
+      for(let page of pages) {
+
+        let item = new MangaItem(container, nextItem, page["image_urls"].medium )
+        item.bigSrc = page["image_urls"].large
+        
       }
     }).catch(ex => new Promise((resolve, reject) => {
       let req = new XMLHttpRequest()
