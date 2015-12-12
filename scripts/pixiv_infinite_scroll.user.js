@@ -8,7 +8,7 @@
 // @match       *://www.pixiv.net/bookmark_new_illust*
 // @require     https://cdnjs.cloudflare.com/ajax/libs/jszip/2.4.0/jszip.js
 // @downloadURL https://github.com/an-electric-sheep/userscripts/raw/master/scripts/pixiv_infinite_scroll.user.js
-// @version     0.6.4
+// @version     0.6.5
 // @grant       GM_xmlhttpRequest
 // @run-at      document-start
 // @noframes
@@ -708,7 +708,8 @@ function ImageItem(item) {
 
 ImageItem.prototype = {
   get id() {
-    return this.workLink.href.match(/illust_id=(\d+)/)[1] | 0
+    let match = this.workLink.href.match(/illust_id=(\d+)/);
+    return match && (match[1] | 0) || 0
   },
   get image() {
     return this.workLink.querySelector("img")
