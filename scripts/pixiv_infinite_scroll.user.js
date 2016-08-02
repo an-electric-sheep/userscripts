@@ -9,7 +9,7 @@
 // @match       *://www.pixiv.net/bookmark_new_illust*
 // @require     https://cdnjs.cloudflare.com/ajax/libs/jszip/2.4.0/jszip.js
 // @downloadURL https://github.com/an-electric-sheep/userscripts/raw/master/scripts/pixiv_infinite_scroll.user.js
-// @version     0.7.0
+// @version     0.7.1
 // @grant       GM_xmlhttpRequest
 // @run-at      document-start
 // @noframes
@@ -118,7 +118,7 @@ style.textContent = `
    /* global */
 
    #wrapper {width: unset;}
-   .userscript-error {background-color: rgb(200,0,0); color: black;position: sticky;z-index: 2;width: 100%;text-align:center; padding: 2px; color: white; font-weight: bold; top: 0px;}",
+   .userscript-error {background-color: rgb(200,0,0); color: black;position: sticky;z-index: 2;width: 100%;text-align:center; padding: 2px; color: white; font-weight: bold; top: 0px;}
    
    /* search page */
    
