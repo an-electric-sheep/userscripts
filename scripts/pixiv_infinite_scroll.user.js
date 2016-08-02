@@ -9,7 +9,7 @@
 // @match       *://www.pixiv.net/bookmark_new_illust*
 // @require     https://cdnjs.cloudflare.com/ajax/libs/jszip/2.4.0/jszip.js
 // @downloadURL https://github.com/an-electric-sheep/userscripts/raw/master/scripts/pixiv_infinite_scroll.user.js
-// @version     0.6.6
+// @version     0.7.0
 // @grant       GM_xmlhttpRequest
 // @run-at      document-start
 // @noframes
