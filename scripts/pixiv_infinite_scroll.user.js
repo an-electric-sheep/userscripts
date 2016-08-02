@@ -4,11 +4,12 @@
 // @namespace   https://github.com/an-electric-sheep/userscripts
 // @match       *://www.pixiv.net/search*
 // @match       *://www.pixiv.net/member_illust*
+// @match       *://www.pixiv.net/bookmark.php*
 // @match       *://www.pixiv.net/new_illust*
 // @match       *://www.pixiv.net/bookmark_new_illust*
 // @require     https://cdnjs.cloudflare.com/ajax/libs/jszip/2.4.0/jszip.js
 // @downloadURL https://github.com/an-electric-sheep/userscripts/raw/master/scripts/pixiv_infinite_scroll.user.js
-// @version     0.6.5
+// @version     0.6.6
 // @grant       GM_xmlhttpRequest
 // @run-at      document-start
 // @noframes
@@ -661,7 +662,13 @@ function customizeImageItem(itemElement) {
   if(greasedImageItems.has(itemElement))
    return false;
 
-  let wrapper = new ImageItem(itemElement)
+  let wrapper;
+  
+  try {
+  	wrapper = new ImageItem(itemElement);  	
+  } catch(e) {
+  	return false;  	
+  }
   
   let id = wrapper.id;
   if(id && greasedIds.has(id)) {
@@ -676,6 +683,8 @@ function customizeImageItem(itemElement) {
 
 function ImageItem(item) {
   let workLink = this.workLink = item.querySelector("a.work")
+  if(!workLink)
+  	throw new Error("no work link found")
 
   this.container = item
 
