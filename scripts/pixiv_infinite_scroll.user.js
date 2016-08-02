@@ -95,12 +95,13 @@ document.addEventListener("DOMContentLoaded", function() {
   
   for(var e of document.querySelectorAll(".image-item")){customizeImageItem(e)}
   
-  
   Maybe(Array.from(document.querySelectorAll(".pager-container")).last).apply(paginator => {
     Maybe(document.querySelector(".image-item:last-child")).apply(lastItem => {
       var trigger = new NextPageHandler(lastItem)
       trigger.paginator = paginator
-      trigger.url = paginator.querySelector("a[rel=next]").href
+      trigger.navElements = Array.from(paginator.childNodes)
+      trigger.currentURL = window.location.href
+      trigger.nextURL = paginator.querySelector("a[rel=next]").href
     })
   })
   
@@ -280,7 +281,7 @@ NextPageHandler.checkAll = function() {
 }
 
 NextPageHandler.prototype.updatePageHistory = function() {
-	history.replaceState({}, "", this.url)
+	history.replaceState({}, "", this.currentURL)
 	if(this.paginator && this.navElements) {
 	  while(this.paginator.hasChildNodes())
 	    this.paginator.firstChild.remove();
@@ -291,12 +292,12 @@ NextPageHandler.prototype.updatePageHistory = function() {
 
 
 NextPageHandler.prototype.tryLoad = function(){
-  if(this.loading || this.loaded || !this.url || !inViewport(this.element))
+  if(this.loading || this.loaded || !this.nextURL || !inViewport(this.element))
     return;
   this.loading = true
   
   var req = new XMLHttpRequest();
-  req.open("get", this.url)
+  req.open("get", this.nextURL)
   req.onabort = () => this.loading = false
   req.onerror = () => this.loading = false
   req.onload = () => {
@@ -317,13 +318,13 @@ NextPageHandler.prototype.tryLoad = function(){
       return null;
     }).filter(e => e != null).last
     
-    if(lastItem) {    
-      Maybe(newPaginator.querySelector("a[rel=next]")).map(e => e.href).apply(url => {
-        var nextHandler = new NextPageHandler(lastItem)
-        nextHandler.url = url
-        nextHandler.paginator = this.paginator
-        nextHandler.navElements = Array.from(newPaginator.childNodes).map(e => document.importNode(e, true));
-      })
+    if(lastItem) {
+      var nextHandler = new NextPageHandler(lastItem)
+      nextHandler.paginator = this.paginator
+      nextHandler.navElements = Array.from(newPaginator.childNodes).map(e => document.importNode(e, true));
+      nextHandler.currentURL = this.nextURL
+
+      Maybe(newPaginator.querySelector("a[rel=next]")).apply(e => nextHandler.nextURL = e.href)
     }
 
     this.loading = false
