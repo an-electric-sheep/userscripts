@@ -158,8 +158,11 @@ style.textContent = `
    .has-extended-info {display: flex; flex-wrap: wrap; justify-content: center; min-width: 342px; width: unset; height: unset;}
    .extended-info {margin-left: 0.8em;}
    .extended-info > * {margin-bottom: 1em; text-align: left; }
-   .extended-info .tags .tag {float: unset; text-align: left; height: unset; width: unset; border: unset; padding: unset; background: unset; display: list-item; margin: 0px;}
+   .extended-info .tags .tag {float: unset; text-align: left; height: unset; width: unset; border: unset; padding: unset; background: unset; display: list-item; margin: 0px;} 
    ._layout-thumbnail:after {pointer-events: none;}
+
+	 /* paginator */
+	 .column-order-menu {position: sticky; bottom:0px;background-color: white; min-height: 30px;border-top: 1px solid grey;z-index:2;}
 `;
 
 
@@ -269,11 +272,26 @@ NextPageHandler.paginationTriggers = new Set()
 
 NextPageHandler.checkAll = function() {
   NextPageHandler.paginationTriggers.forEach(e => e.tryLoad())
+  
+  let first = [...NextPageHandler.paginationTriggers].find(t => inViewport(t.element));
+  if(first) {
+  	first.updatePageHistory()
+  }
+}
+
+NextPageHandler.prototype.updatePageHistory = function() {
+	history.replaceState({}, "", this.url)
+	if(this.paginator && this.navElements) {
+	  while(this.paginator.hasChildNodes())
+	    this.paginator.firstChild.remove();
+	  this.navElements.forEach(e => this.paginator.appendChild(e))
+		
+	}
 }
 
 
 NextPageHandler.prototype.tryLoad = function(){
-  if(this.loading || !this.url || !inViewport(this.element))
+  if(this.loading || this.loaded || !this.url || !inViewport(this.element))
     return;
   this.loading = true
   
@@ -299,20 +317,17 @@ NextPageHandler.prototype.tryLoad = function(){
       return null;
     }).filter(e => e != null).last
     
-    if(lastItem)    
+    if(lastItem) {    
       Maybe(newPaginator.querySelector("a[rel=next]")).map(e => e.href).apply(url => {
         var nextHandler = new NextPageHandler(lastItem)
         nextHandler.url = url
         nextHandler.paginator = this.paginator
+        nextHandler.navElements = Array.from(newPaginator.childNodes).map(e => document.importNode(e, true));
       })
-    
-    if(this.paginator) {
-      while(this.paginator.hasChildNodes())
-        this.paginator.firstChild.remove()
-      Array.from(newPaginator.childNodes).forEach(e => this.paginator.appendChild(document.importNode(e, true)))
     }
-    this.destroy()
+
     this.loading = false
+    this.loaded = true
     NextPageHandler.checkAll();
   }
   req.responseType = "document"
