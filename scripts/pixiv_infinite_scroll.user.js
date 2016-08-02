@@ -9,7 +9,7 @@
 // @match       *://www.pixiv.net/bookmark_new_illust*
 // @require     https://cdnjs.cloudflare.com/ajax/libs/jszip/2.4.0/jszip.js
 // @downloadURL https://github.com/an-electric-sheep/userscripts/raw/master/scripts/pixiv_infinite_scroll.user.js
-// @version     0.7.1
+// @version     0.7.2
 // @grant       GM_xmlhttpRequest
 // @run-at      document-start
 // @noframes
@@ -88,9 +88,24 @@ const imgContainerSelector = "._image-items, .image-items, .display_works > ul";
 document.addEventListener("DOMContentLoaded", function() {
   for(var e of document.querySelectorAll("iframe, .ad-printservice, .popular-introduction")){e.remove()}
   
-  window.addEventListener("scroll", NextPageHandler.checkAll)
-  window.addEventListener("resize", NextPageHandler.checkAll)
-  window.addEventListener("visibilitychange", NextPageHandler.checkAll)
+  // scroll events fire at high rate, throttle them
+  let requested = false;
+  
+  function viewportChanged() {
+  	if(requested)
+  		return;
+  	requested = true;
+
+  	window.setTimeout(() => {
+  		requested = false;
+  		NextPageHandler.checkAll();
+  	}, 0)
+  	
+  } 
+  
+  window.addEventListener("scroll", viewportChanged)
+  window.addEventListener("resize", viewportChanged)
+  window.addEventListener("visibilitychange", viewportChanged)
   window.requestAnimationFrame(AnimatedCanvas.updateAll)
   
   for(var e of document.querySelectorAll(".image-item")){customizeImageItem(e)}
