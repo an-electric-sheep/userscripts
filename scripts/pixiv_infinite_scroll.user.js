@@ -152,7 +152,8 @@ style.textContent = `
    /* member illust page */
    
    .works_display {width: unset;}
-   .works_display img, .works_display ._layout-thumbnail {max-width: -moz-available; max-width: available}
+   .works_display img, .works_display ._layout-thumbnail {max-width: -moz-available; max-width: available;}
+   section#illust-recommend {margin-right: 0px;}
    
    /* search and member works list */
 
