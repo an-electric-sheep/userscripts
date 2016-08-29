@@ -96,10 +96,10 @@ document.addEventListener("DOMContentLoaded", function() {
   		return;
   	requested = true;
 
-  	window.setTimeout(() => {
+  	window.requestAnimationFrame(() => {
   		requested = false;
   		NextPageHandler.checkAll();
-  	}, 0)
+  	})
   	
   } 
   
