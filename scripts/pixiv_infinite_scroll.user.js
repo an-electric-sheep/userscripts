@@ -9,7 +9,7 @@
 // @match       *://www.pixiv.net/bookmark_new_illust*
 // @require     https://cdnjs.cloudflare.com/ajax/libs/jszip/2.4.0/jszip.js
 // @downloadURL https://github.com/an-electric-sheep/userscripts/raw/master/scripts/pixiv_infinite_scroll.user.js
-// @version     0.7.3
+// @version     0.7.4
 // @grant       GM_xmlhttpRequest
 // @run-at      document-start
 // @noframes
@@ -747,8 +747,10 @@ function ImageItem(item) {
   mainInfoContainer.className = "image-item-main"
 
   mainInfoContainer.classList.add("inline-expandable")
+  
+  let img = this.image;
 
-  this.image.addEventListener("click", (e) => {
+  img.addEventListener("click", (e) => {
     this.listItemExpand()
     // img is wrapped in a link, don't follow the link when the user clicks on it
     if(e.button === 0) {
@@ -756,6 +758,10 @@ function ImageItem(item) {
       e.stopPropagation()
     }
   })
+  
+  if(img.dataset.src) {
+  	img.src = img.dataset.src
+  }
 
   expandedInfo.className = "extended-info"
 }
