@@ -9,7 +9,7 @@
 // @match       *://www.pixiv.net/bookmark_new_illust*
 // @require     https://cdnjs.cloudflare.com/ajax/libs/jszip/2.4.0/jszip.js
 // @downloadURL https://github.com/an-electric-sheep/userscripts/raw/master/scripts/pixiv_infinite_scroll.user.js
-// @version     0.7.4
+// @version     0.7.5
 // @grant       GM_xmlhttpRequest
 // @run-at      document-start
 // @noframes
@@ -409,7 +409,13 @@ MangaItem.prototype = {
       // new image format
       // test with http://www.pixiv.net/member_illust.php?mode=medium&illust_id=46288162
       mediumSrc = mediumSrc.replace(/\/c\/\d+x\d+\/img-master\//, "/img-original/");
+      // yet another new format
+      // http://www.pixiv.net/member_illust.php?mode=medium&illust_id=61985638
+      mediumSrc = mediumSrc.replace(/img-master\/img\//,"img-original/img/")
+      
+      // common replacement
       mediumSrc = mediumSrc.replace(/_master1200\./, ".");
+
     } else {
       // old image format
       // test with http://www.pixiv.net/member_illust.php?mode=medium&illust_id=43499240
@@ -480,20 +486,26 @@ function insertMangaItems(parentItem,url) {
       req.onload = function() {
         let rsp = this.responseXML
 
-        let items = rsp.querySelectorAll(".item-container")
-
-        if(items.length < 1)
-          reject("no manga items found for " + url)
-        else
-          resolve(null)
+        let items = [];
         
-        for(let e of items) {
-          let mediumImg = e.querySelector(".image")
-          let item = new MangaItem(container, nextItem, mediumImg.dataset.src)
+        let mediumImages = rsp.querySelectorAll(".item-container");
+        
+        if(mediumImages.length > 0) {
+        	for(let e of mediumImages) {
+            let item = new MangaItem(container, nextItem, e.querySelector(".image").dataset.src)
 
-          item.bigUrl = e.querySelector(".full-size-container").href
-          
+            item.bigUrl = e.querySelector(".full-size-container").href        		
+        	}
+        	resolve(null)
+
+        } else {
+        	// TODO: right-to-left manga browsing browsing format
+        	rsp.querySelectorAll("head script:not([src])")
+        	//resolve()
         }
+        
+        reject("no manga items found for " + url)
+
       }
       req.onerror = () => {
         reject("failed to load " + url)
